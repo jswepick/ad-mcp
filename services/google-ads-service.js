@@ -441,7 +441,8 @@ export class GoogleAdsService {
         client_id: CLIENT_ID,
         client_secret: CLIENT_SECRET,
         refresh_token: REFRESH_TOKEN,
-        grant_type: 'refresh_token'
+        grant_type: 'refresh_token',
+        scope: 'https://www.googleapis.com/auth/adwords'
       });
 
       const response = await axios.post(OAUTH_URL, params.toString(), {

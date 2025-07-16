@@ -145,7 +145,7 @@ export class GoogleAdsService {
 
   async getCampaignPerformance(days, campaignIds) {
     try {
-      console.log('📊 Google Ads 캠페인 성과 조회 중...');
+      console.error('📊 Google Ads 캠페인 성과 조회 중...');
       
       const { start_date, end_date } = getGoogleDateRange(days);
       
@@ -203,7 +203,7 @@ export class GoogleAdsService {
 
   async getCampaignList(statusFilter) {
     try {
-      console.log('📋 Google Ads 캠페인 목록 조회 중...');
+      console.error('📋 Google Ads 캠페인 목록 조회 중...');
 
       // 간단한 GAQL 쿼리 작성
       let query = `SELECT campaign.id, campaign.name, campaign.status FROM campaign`;
@@ -216,12 +216,12 @@ export class GoogleAdsService {
 
       query += ` LIMIT 20`;
 
-      console.log('GAQL Query:', query);
+      console.error('GAQL Query:', query);
 
       // REST API로 Google Ads 호출
       const response = await this.makeGoogleAdsRequest(query);
       
-      console.log('✅ 캠페인 조회 성공');
+      console.error('✅ 캠페인 조회 성공');
 
       return {
         content: [
@@ -260,7 +260,7 @@ export class GoogleAdsService {
 
   async getKeywordPerformance(days, campaignId) {
     try {
-      console.log('🔍 Google Ads 키워드 성과 조회 중...');
+      console.error('🔍 Google Ads 키워드 성과 조회 중...');
       
       const { start_date, end_date } = getGoogleDateRange(days);
       
@@ -333,20 +333,20 @@ export class GoogleAdsService {
 
   async testConnection() {
     try {
-      console.log('🔧 Google Ads API 연결 테스트 시작...');
+      console.error('🔧 Google Ads API 연결 테스트 시작...');
       
       // 1단계: OAuth 토큰 테스트
       const accessToken = await this.getAccessToken();
-      console.log('✅ OAuth 토큰 갱신 성공');
+      console.error('✅ OAuth 토큰 갱신 성공');
       
       // 2단계: Customer ID 정보 확인
       const customerId = CUSTOMER_ID.replace(/-/g, '');
-      console.log('📋 Customer ID:', customerId);
+      console.error('📋 Customer ID:', customerId);
       
       // 3단계: 간단한 API 호출 테스트 (Customer 정보 조회)
       const customerUrl = `${BASE_URL}/customers/${customerId}`;
       
-      console.log('🔍 Customer 정보 요청:', customerUrl);
+      console.error('🔍 Customer 정보 요청:', customerUrl);
       
       const response = await axios.get(customerUrl, {
         headers: {
@@ -356,7 +356,7 @@ export class GoogleAdsService {
         }
       });
       
-      console.log('✅ Customer 정보 조회 성공');
+      console.error('✅ Customer 정보 조회 성공');
       
       return {
         content: [
@@ -425,7 +425,7 @@ export class GoogleAdsService {
     }
 
     try {
-      console.log('🔄 Google Ads OAuth 토큰 갱신 중...');
+      console.error('🔄 Google Ads OAuth 토큰 갱신 중...');
       
       const params = new URLSearchParams({
         client_id: CLIENT_ID,
@@ -444,7 +444,7 @@ export class GoogleAdsService {
       // 토큰 만료 시간 설정 (응답에서 받은 expires_in - 5분 여유)
       this.tokenExpiryTime = Date.now() + (response.data.expires_in - 300) * 1000;
       
-      console.log('✅ Google Ads OAuth 토큰 갱신 완료');
+      console.error('✅ Google Ads OAuth 토큰 갱신 완료');
       return this.accessToken;
 
     } catch (error) {
@@ -466,7 +466,7 @@ export class GoogleAdsService {
     const url = `${BASE_URL}/customers/${customerId}/googleAds:search`;
     
     try {
-      console.log('🔍 Google Ads API 요청:', {
+      console.error('🔍 Google Ads API 요청:', {
         url,
         customerId,
         apiVersion: GOOGLE_ADS_API_VERSION
@@ -476,7 +476,7 @@ export class GoogleAdsService {
         query: query.trim()
       };
 
-      console.log('요청 본문:', requestBody);
+      console.error('요청 본문:', requestBody);
 
       const response = await axios.post(url, requestBody, {
         headers: {
@@ -487,7 +487,7 @@ export class GoogleAdsService {
         }
       });
 
-      console.log('✅ Google Ads API 응답:', {
+      console.error('✅ Google Ads API 응답:', {
         status: response.status,
         hasResults: !!response.data?.results
       });

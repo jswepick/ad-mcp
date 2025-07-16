@@ -141,6 +141,15 @@ export class GoogleAdsService {
     }
   }
 
+  getDateFunction(days) {
+  switch(days) {
+    case 1: return 'YESTERDAY';
+    case 7: return 'LAST_7_DAYS';
+    case 30: return 'LAST_30_DAYS';
+    default: return 'LAST_7_DAYS';
+  }
+}
+
   // === 캠페인 관련 메서드들 ===
 
   async getCampaignPerformance(days, campaignIds) {
@@ -155,6 +164,7 @@ export class GoogleAdsService {
           campaign.id,
           campaign.name,
           campaign.status,
+          segments.date,
           metrics.impressions,
           metrics.clicks,
           metrics.cost_micros,
@@ -165,7 +175,7 @@ export class GoogleAdsService {
           metrics.conversions_value,
           metrics.conversion_rate
         FROM campaign
-        WHERE segments.date BETWEEN '${start_date}' AND '${end_date}'
+        WHERE segments.date DURING ${this.getDateFunction(days)}
       `;
 
       // 특정 캠페인 ID 필터 추가

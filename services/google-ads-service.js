@@ -115,6 +115,176 @@ export class GoogleAdsService {
             }
           }
         }
+      },
+      {
+        name: 'google_get_ad_group_list',
+        description: 'Google Ads 광고그룹 목록을 조회합니다',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            campaign_id: {
+              type: 'string',
+              description: '특정 캠페인의 광고그룹만 조회 (선택사항)'
+            },
+            status_filter: {
+              type: 'string',
+              enum: ['ENABLED', 'PAUSED', 'ALL'],
+              default: 'ALL',
+              description: '상태별 필터'
+            }
+          }
+        }
+      },
+      {
+        name: 'google_get_ad_group_performance',
+        description: 'Google Ads 광고그룹 성과를 조회합니다',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            days: {
+              type: 'number',
+              description: '조회할 일수',
+              default: 7
+            },
+            ad_group_ids: {
+              type: 'array',
+              items: { type: 'string' },
+              description: '특정 광고그룹 ID들 (선택사항)'
+            },
+            campaign_id: {
+              type: 'string',
+              description: '특정 캠페인의 광고그룹만 조회 (선택사항)'
+            }
+          }
+        }
+      },
+      {
+        name: 'google_toggle_ad_group_status',
+        description: 'Google Ads 광고그룹 상태를 변경합니다',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            ad_group_id: {
+              type: 'string',
+              description: '제어할 광고그룹 ID'
+            },
+            status: {
+              type: 'string',
+              enum: ['ENABLED', 'PAUSED'],
+              description: '설정할 상태'
+            }
+          },
+          required: ['ad_group_id', 'status']
+        }
+      },
+      {
+        name: 'google_bulk_toggle_ad_groups',
+        description: 'Google Ads 광고그룹 상태를 일괄 변경합니다',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            ad_group_ids: {
+              type: 'array',
+              items: { type: 'string' },
+              description: '제어할 광고그룹 ID 배열'
+            },
+            status: {
+              type: 'string',
+              enum: ['ENABLED', 'PAUSED'],
+              description: '설정할 상태'
+            }
+          },
+          required: ['ad_group_ids', 'status']
+        }
+      },
+      {
+        name: 'google_get_ad_list',
+        description: 'Google Ads 광고 목록을 조회합니다',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            campaign_id: {
+              type: 'string',
+              description: '특정 캠페인의 광고만 조회 (선택사항)'
+            },
+            ad_group_id: {
+              type: 'string',
+              description: '특정 광고그룹의 광고만 조회 (선택사항)'
+            },
+            status_filter: {
+              type: 'string',
+              enum: ['ENABLED', 'PAUSED', 'ALL'],
+              default: 'ALL',
+              description: '상태별 필터'
+            }
+          }
+        }
+      },
+      {
+        name: 'google_get_ad_performance',
+        description: 'Google Ads 광고 성과를 조회합니다',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            days: {
+              type: 'number',
+              description: '조회할 일수',
+              default: 7
+            },
+            ad_ids: {
+              type: 'array',
+              items: { type: 'string' },
+              description: '특정 광고 ID들 (선택사항)'
+            },
+            campaign_id: {
+              type: 'string',
+              description: '특정 캠페인의 광고만 조회 (선택사항)'
+            },
+            ad_group_id: {
+              type: 'string',
+              description: '특정 광고그룹의 광고만 조회 (선택사항)'
+            }
+          }
+        }
+      },
+      {
+        name: 'google_toggle_ad_status',
+        description: 'Google Ads 광고 상태를 변경합니다',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            ad_id: {
+              type: 'string',
+              description: '제어할 광고 ID'
+            },
+            status: {
+              type: 'string',
+              enum: ['ENABLED', 'PAUSED'],
+              description: '설정할 상태'
+            }
+          },
+          required: ['ad_id', 'status']
+        }
+      },
+      {
+        name: 'google_bulk_toggle_ads',
+        description: 'Google Ads 광고 상태를 일괄 변경합니다',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            ad_ids: {
+              type: 'array',
+              items: { type: 'string' },
+              description: '제어할 광고 ID 배열'
+            },
+            status: {
+              type: 'string',
+              enum: ['ENABLED', 'PAUSED'],
+              description: '설정할 상태'
+            }
+          },
+          required: ['ad_ids', 'status']
+        }
       }
     ];
   }
@@ -134,6 +304,22 @@ export class GoogleAdsService {
         return await this.getKeywordPerformance(args.days || 7, args.campaign_id);
       case 'google_get_search_terms':
         return await this.getSearchTerms(args.days || 7, args.min_impressions || 10);
+      case 'google_get_ad_group_list':
+        return await this.getAdGroupList(args.campaign_id, args.status_filter || 'ALL');
+      case 'google_get_ad_group_performance':
+        return await this.getAdGroupPerformance(args.days || 7, args.ad_group_ids, args.campaign_id);
+      case 'google_toggle_ad_group_status':
+        return await this.toggleAdGroupStatus(args.ad_group_id, args.status);
+      case 'google_bulk_toggle_ad_groups':
+        return await this.bulkToggleAdGroups(args.ad_group_ids, args.status);
+      case 'google_get_ad_list':
+        return await this.getAdList(args.campaign_id, args.ad_group_id, args.status_filter || 'ALL');
+      case 'google_get_ad_performance':
+        return await this.getAdPerformance(args.days || 7, args.ad_ids, args.campaign_id, args.ad_group_id);
+      case 'google_toggle_ad_status':
+        return await this.toggleAdStatus(args.ad_id, args.status);
+      case 'google_bulk_toggle_ads':
+        return await this.bulkToggleAds(args.ad_ids, args.status);
       case 'google_test_connection':
         return await this.testConnection();
       default:
@@ -141,22 +327,13 @@ export class GoogleAdsService {
     }
   }
 
-  getDateFunction(days) {
-  switch(days) {
-    case 1: return 'YESTERDAY';
-    case 7: return 'LAST_7_DAYS';
-    case 30: return 'LAST_30_DAYS';
-    default: return 'LAST_7_DAYS';
-  }
-}
-
   // === 캠페인 관련 메서드들 ===
 
   async getCampaignPerformance(days, campaignIds) {
     try {
       console.error('📊 Google Ads 캠페인 성과 조회 중...');
       
-      const { start_date, end_date } = getGoogleDateRange(days);
+      const dateRange = this.getDateFunction(days);
       
       // Google Ads Query Language (GAQL) 쿼리 작성
       let query = `
@@ -164,7 +341,6 @@ export class GoogleAdsService {
           campaign.id,
           campaign.name,
           campaign.status,
-          segments.date,
           metrics.impressions,
           metrics.clicks,
           metrics.cost_micros,
@@ -175,7 +351,7 @@ export class GoogleAdsService {
           metrics.conversions_value,
           metrics.conversion_rate
         FROM campaign
-        WHERE segments.date DURING ${this.getDateFunction(days)}
+        WHERE segments.date DURING ${dateRange}
       `;
 
       // 특정 캠페인 ID 필터 추가
@@ -213,7 +389,7 @@ export class GoogleAdsService {
 
   async getCampaignList(statusFilter) {
     try {
-      console.error('📋 Google Ads 캠페인 목록 조회 중...');
+      console.log('📋 Google Ads 캠페인 목록 조회 중...');
 
       // 간단한 GAQL 쿼리 작성
       let query = `SELECT campaign.id, campaign.name, campaign.status FROM campaign`;
@@ -226,12 +402,12 @@ export class GoogleAdsService {
 
       query += ` LIMIT 20`;
 
-      console.error('GAQL Query:', query);
+      console.log('GAQL Query:', query);
 
       // REST API로 Google Ads 호출
       const response = await this.makeGoogleAdsRequest(query);
       
-      console.error('✅ 캠페인 조회 성공');
+      console.log('✅ 캠페인 조회 성공');
 
       return {
         content: [
@@ -270,7 +446,7 @@ export class GoogleAdsService {
 
   async getKeywordPerformance(days, campaignId) {
     try {
-      console.error('🔍 Google Ads 키워드 성과 조회 중...');
+      console.log('🔍 Google Ads 키워드 성과 조회 중...');
       
       const { start_date, end_date } = getGoogleDateRange(days);
       
@@ -343,20 +519,20 @@ export class GoogleAdsService {
 
   async testConnection() {
     try {
-      console.error('🔧 Google Ads API 연결 테스트 시작...');
+      console.log('🔧 Google Ads API 연결 테스트 시작...');
       
       // 1단계: OAuth 토큰 테스트
       const accessToken = await this.getAccessToken();
-      console.error('✅ OAuth 토큰 갱신 성공');
+      console.log('✅ OAuth 토큰 갱신 성공');
       
       // 2단계: Customer ID 정보 확인
       const customerId = CUSTOMER_ID.replace(/-/g, '');
-      console.error('📋 Customer ID:', customerId);
+      console.log('📋 Customer ID:', customerId);
       
       // 3단계: 간단한 API 호출 테스트 (Customer 정보 조회)
       const customerUrl = `${BASE_URL}/customers/${customerId}`;
       
-      console.error('🔍 Customer 정보 요청:', customerUrl);
+      console.log('🔍 Customer 정보 요청:', customerUrl);
       
       const response = await axios.get(customerUrl, {
         headers: {
@@ -366,7 +542,7 @@ export class GoogleAdsService {
         }
       });
       
-      console.error('✅ Customer 정보 조회 성공');
+      console.log('✅ Customer 정보 조회 성공');
       
       return {
         content: [
@@ -435,14 +611,13 @@ export class GoogleAdsService {
     }
 
     try {
-      console.error('🔄 Google Ads OAuth 토큰 갱신 중...');
+      console.log('🔄 Google Ads OAuth 토큰 갱신 중...');
       
       const params = new URLSearchParams({
         client_id: CLIENT_ID,
         client_secret: CLIENT_SECRET,
         refresh_token: REFRESH_TOKEN,
-        grant_type: 'refresh_token',
-        scope: 'https://www.googleapis.com/auth/adwords'
+        grant_type: 'refresh_token'
       });
 
       const response = await axios.post(OAUTH_URL, params.toString(), {
@@ -455,7 +630,7 @@ export class GoogleAdsService {
       // 토큰 만료 시간 설정 (응답에서 받은 expires_in - 5분 여유)
       this.tokenExpiryTime = Date.now() + (response.data.expires_in - 300) * 1000;
       
-      console.error('✅ Google Ads OAuth 토큰 갱신 완료');
+      console.log('✅ Google Ads OAuth 토큰 갱신 완료');
       return this.accessToken;
 
     } catch (error) {
@@ -477,7 +652,7 @@ export class GoogleAdsService {
     const url = `${BASE_URL}/customers/${customerId}/googleAds:search`;
     
     try {
-      console.error('🔍 Google Ads API 요청:', {
+      console.log('🔍 Google Ads API 요청:', {
         url,
         customerId,
         apiVersion: GOOGLE_ADS_API_VERSION
@@ -487,7 +662,7 @@ export class GoogleAdsService {
         query: query.trim()
       };
 
-      console.error('요청 본문:', requestBody);
+      console.log('요청 본문:', requestBody);
 
       const response = await axios.post(url, requestBody, {
         headers: {
@@ -498,7 +673,7 @@ export class GoogleAdsService {
         }
       });
 
-      console.error('✅ Google Ads API 응답:', {
+      console.log('✅ Google Ads API 응답:', {
         status: response.status,
         hasResults: !!response.data?.results
       });
@@ -809,5 +984,594 @@ export class GoogleAdsService {
    */
   formatGoogleMetrics(data) {
     return standardizeMetrics(data, 'google');
+  }
+
+  // === 광고그룹 관련 메서드들 ===
+
+  async getAdGroupList(campaignId, statusFilter) {
+    try {
+      console.log('📋 Google Ads 광고그룹 목록 조회 중...');
+      
+      await this.ensureValidToken();
+      
+      let gaqlQuery = `
+        SELECT 
+          ad_group.id,
+          ad_group.name,
+          ad_group.status,
+          ad_group.type,
+          campaign.id,
+          campaign.name
+        FROM ad_group
+      `;
+      
+      const conditions = [];
+      
+      if (statusFilter !== 'ALL') {
+        conditions.push(`ad_group.status = '${statusFilter}'`);
+      }
+      
+      if (campaignId) {
+        conditions.push(`campaign.id = '${campaignId}'`);
+      }
+      
+      if (conditions.length > 0) {
+        gaqlQuery += ` WHERE ${conditions.join(' AND ')}`;
+      }
+      
+      gaqlQuery += ' ORDER BY ad_group.name';
+      
+      const response = await this.makeGoogleAdsRequest(gaqlQuery);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: this.formatAdGroupList(response.results || [], statusFilter)
+          }
+        ]
+      };
+      
+    } catch (error) {
+      console.error('Google Ads 광고그룹 목록 조회 실패:', error.message);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `❌ **Google Ads 광고그룹 목록 조회 실패**\n\n**오류**: ${error.message}\n\n**해결 방법:**\n- OAuth 토큰이 유효한지 확인\n- Customer ID가 올바른지 확인\n- 캠페인 ID가 존재하는지 확인`
+          }
+        ]
+      };
+    }
+  }
+
+  async getAdGroupPerformance(days, adGroupIds, campaignId) {
+    try {
+      console.log('📊 Google Ads 광고그룹 성과 조회 중...');
+      
+      await this.ensureValidToken();
+      
+      const { start_date, end_date } = getGoogleDateRange(days);
+      
+      let gaqlQuery = `
+        SELECT 
+          ad_group.id,
+          ad_group.name,
+          campaign.name,
+          metrics.impressions,
+          metrics.clicks,
+          metrics.cost_micros,
+          metrics.ctr,
+          metrics.average_cpc,
+          metrics.conversions,
+          metrics.conversions_value
+        FROM ad_group
+        WHERE segments.date >= '${start_date}' 
+          AND segments.date <= '${end_date}'
+      `;
+      
+      const conditions = [];
+      
+      if (adGroupIds && adGroupIds.length > 0) {
+        const idList = adGroupIds.map(id => `'${id}'`).join(',');
+        conditions.push(`ad_group.id IN (${idList})`);
+      }
+      
+      if (campaignId) {
+        conditions.push(`campaign.id = '${campaignId}'`);
+      }
+      
+      if (conditions.length > 0) {
+        gaqlQuery += ` AND ${conditions.join(' AND ')}`;
+      }
+      
+      gaqlQuery += ' ORDER BY metrics.cost_micros DESC';
+      
+      const response = await this.makeGoogleAdsRequest(gaqlQuery);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: this.formatAdGroupPerformance(response.results || [], days)
+          }
+        ]
+      };
+      
+    } catch (error) {
+      console.error('Google Ads 광고그룹 성과 조회 실패:', error.message);
+      const periodText = getPeriodText(days);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `❌ **${periodText} Google Ads 광고그룹 성과 조회 실패**\n\n**오류**: ${error.message}\n\n**해결 방법:**\n- 날짜 범위가 올바른지 확인\n- 광고그룹 ID가 존재하는지 확인\n- 리포팅 권한이 있는지 확인`
+          }
+        ]
+      };
+    }
+  }
+
+  async toggleAdGroupStatus(adGroupId, status) {
+    try {
+      console.log(`🔄 Google Ads 광고그룹 ${adGroupId} 상태 변경: ${status}`);
+      
+      await this.ensureValidToken();
+      
+      const requestBody = {
+        operations: [
+          {
+            update: {
+              resourceName: `customers/${CUSTOMER_ID}/adGroups/${adGroupId}`,
+              status: status
+            },
+            updateMask: 'status'
+          }
+        ]
+      };
+      
+      const response = await this.makeGoogleAdsMutateRequest('adGroups:mutate', requestBody);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `✅ **Google Ads 광고그룹 상태 변경 완료**\n\n광고그룹 ID: ${adGroupId}\n새 상태: ${status === 'ENABLED' ? '✅ 활성' : '⏸️ 일시정지'}`
+          }
+        ]
+      };
+      
+    } catch (error) {
+      console.error('Google Ads 광고그룹 상태 변경 실패:', error.message);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `❌ **Google Ads 광고그룹 상태 변경 실패**\n\n**오류**: ${error.message}\n\n**해결 방법:**\n- 광고그룹 ID가 올바른지 확인\n- 광고그룹 수정 권한이 있는지 확인\n- 광고그룹이 이미 해당 상태인지 확인`
+          }
+        ]
+      };
+    }
+  }
+
+  async bulkToggleAdGroups(adGroupIds, status) {
+    try {
+      console.log(`🔄 Google Ads 광고그룹 ${adGroupIds.length}개 일괄 상태 변경: ${status}`);
+      
+      await this.ensureValidToken();
+      
+      const operations = adGroupIds.map(id => ({
+        update: {
+          resourceName: `customers/${CUSTOMER_ID}/adGroups/${id}`,
+          status: status
+        },
+        updateMask: 'status'
+      }));
+      
+      const requestBody = { operations };
+      
+      const response = await this.makeGoogleAdsMutateRequest('adGroups:mutate', requestBody);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `✅ **Google Ads 광고그룹 일괄 상태 변경 완료**\n\n변경된 광고그룹 수: ${adGroupIds.length}개\n새 상태: ${status === 'ENABLED' ? '✅ 활성' : '⏸️ 일시정지'}`
+          }
+        ]
+      };
+      
+    } catch (error) {
+      console.error('Google Ads 광고그룹 일괄 상태 변경 실패:', error.message);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `❌ **Google Ads 광고그룹 일괄 상태 변경 실패**\n\n**오류**: ${error.message}\n\n**해결 방법:**\n- 광고그룹 ID들이 올바른지 확인\n- 광고그룹 수정 권한이 있는지 확인\n- 일부 광고그룹이 이미 해당 상태인지 확인`
+          }
+        ]
+      };
+    }
+  }
+
+  // === 광고 관련 메서드들 ===
+
+  async getAdList(campaignId, adGroupId, statusFilter) {
+    try {
+      console.log('📋 Google Ads 광고 목록 조회 중...');
+      
+      await this.ensureValidToken();
+      
+      let gaqlQuery = `
+        SELECT 
+          ad_group_ad.ad.id,
+          ad_group_ad.ad.name,
+          ad_group_ad.status,
+          ad_group_ad.ad.type,
+          ad_group.id,
+          ad_group.name,
+          campaign.id,
+          campaign.name
+        FROM ad_group_ad
+      `;
+      
+      const conditions = [];
+      
+      if (statusFilter !== 'ALL') {
+        conditions.push(`ad_group_ad.status = '${statusFilter}'`);
+      }
+      
+      if (campaignId) {
+        conditions.push(`campaign.id = '${campaignId}'`);
+      }
+      
+      if (adGroupId) {
+        conditions.push(`ad_group.id = '${adGroupId}'`);
+      }
+      
+      if (conditions.length > 0) {
+        gaqlQuery += ` WHERE ${conditions.join(' AND ')}`;
+      }
+      
+      gaqlQuery += ' ORDER BY ad_group_ad.ad.name';
+      
+      const response = await this.makeGoogleAdsRequest(gaqlQuery);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: this.formatAdList(response.results || [], statusFilter)
+          }
+        ]
+      };
+      
+    } catch (error) {
+      console.error('Google Ads 광고 목록 조회 실패:', error.message);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `❌ **Google Ads 광고 목록 조회 실패**\n\n**오류**: ${error.message}\n\n**해결 방법:**\n- OAuth 토큰이 유효한지 확인\n- Customer ID가 올바른지 확인\n- 캠페인/광고그룹 ID가 존재하는지 확인`
+          }
+        ]
+      };
+    }
+  }
+
+  async getAdPerformance(days, adIds, campaignId, adGroupId) {
+    try {
+      console.log('📊 Google Ads 광고 성과 조회 중...');
+      
+      await this.ensureValidToken();
+      
+      const { start_date, end_date } = getGoogleDateRange(days);
+      
+      let gaqlQuery = `
+        SELECT 
+          ad_group_ad.ad.id,
+          ad_group_ad.ad.name,
+          ad_group.name,
+          campaign.name,
+          metrics.impressions,
+          metrics.clicks,
+          metrics.cost_micros,
+          metrics.ctr,
+          metrics.average_cpc,
+          metrics.conversions,
+          metrics.conversions_value
+        FROM ad_group_ad
+        WHERE segments.date >= '${start_date}' 
+          AND segments.date <= '${end_date}'
+      `;
+      
+      const conditions = [];
+      
+      if (adIds && adIds.length > 0) {
+        const idList = adIds.map(id => `'${id}'`).join(',');
+        conditions.push(`ad_group_ad.ad.id IN (${idList})`);
+      }
+      
+      if (campaignId) {
+        conditions.push(`campaign.id = '${campaignId}'`);
+      }
+      
+      if (adGroupId) {
+        conditions.push(`ad_group.id = '${adGroupId}'`);
+      }
+      
+      if (conditions.length > 0) {
+        gaqlQuery += ` AND ${conditions.join(' AND ')}`;
+      }
+      
+      gaqlQuery += ' ORDER BY metrics.cost_micros DESC';
+      
+      const response = await this.makeGoogleAdsRequest(gaqlQuery);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: this.formatAdPerformance(response.results || [], days)
+          }
+        ]
+      };
+      
+    } catch (error) {
+      console.error('Google Ads 광고 성과 조회 실패:', error.message);
+      const periodText = getPeriodText(days);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `❌ **${periodText} Google Ads 광고 성과 조회 실패**\n\n**오류**: ${error.message}\n\n**해결 방법:**\n- 날짜 범위가 올바른지 확인\n- 광고 ID가 존재하는지 확인\n- 리포팅 권한이 있는지 확인`
+          }
+        ]
+      };
+    }
+  }
+
+  async toggleAdStatus(adId, status) {
+    try {
+      console.log(`🔄 Google Ads 광고 ${adId} 상태 변경: ${status}`);
+      
+      await this.ensureValidToken();
+      
+      const requestBody = {
+        operations: [
+          {
+            update: {
+              resourceName: `customers/${CUSTOMER_ID}/adGroupAds/${adId}`,
+              status: status
+            },
+            updateMask: 'status'
+          }
+        ]
+      };
+      
+      const response = await this.makeGoogleAdsMutateRequest('adGroupAds:mutate', requestBody);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `✅ **Google Ads 광고 상태 변경 완료**\n\n광고 ID: ${adId}\n새 상태: ${status === 'ENABLED' ? '✅ 활성' : '⏸️ 일시정지'}`
+          }
+        ]
+      };
+      
+    } catch (error) {
+      console.error('Google Ads 광고 상태 변경 실패:', error.message);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `❌ **Google Ads 광고 상태 변경 실패**\n\n**오류**: ${error.message}\n\n**해결 방법:**\n- 광고 ID가 올바른지 확인\n- 광고 수정 권한이 있는지 확인\n- 광고가 이미 해당 상태인지 확인`
+          }
+        ]
+      };
+    }
+  }
+
+  async bulkToggleAds(adIds, status) {
+    try {
+      console.log(`🔄 Google Ads 광고 ${adIds.length}개 일괄 상태 변경: ${status}`);
+      
+      await this.ensureValidToken();
+      
+      const operations = adIds.map(id => ({
+        update: {
+          resourceName: `customers/${CUSTOMER_ID}/adGroupAds/${id}`,
+          status: status
+        },
+        updateMask: 'status'
+      }));
+      
+      const requestBody = { operations };
+      
+      const response = await this.makeGoogleAdsMutateRequest('adGroupAds:mutate', requestBody);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `✅ **Google Ads 광고 일괄 상태 변경 완료**\n\n변경된 광고 수: ${adIds.length}개\n새 상태: ${status === 'ENABLED' ? '✅ 활성' : '⏸️ 일시정지'}`
+          }
+        ]
+      };
+      
+    } catch (error) {
+      console.error('Google Ads 광고 일괄 상태 변경 실패:', error.message);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `❌ **Google Ads 광고 일괄 상태 변경 실패**\n\n**오류**: ${error.message}\n\n**해결 방법:**\n- 광고 ID들이 올바른지 확인\n- 광고 수정 권한이 있는지 확인\n- 일부 광고가 이미 해당 상태인지 확인`
+          }
+        ]
+      };
+    }
+  }
+
+  // === 포맷팅 헬퍼 메서드들 ===
+
+  formatAdGroupList(adGroups, statusFilter) {
+    let result = `📋 **Google Ads 광고그룹 목록 (${statusFilter})**\n\n`;
+    
+    if (!adGroups || adGroups.length === 0) {
+      result += `ℹ️ 조회된 광고그룹이 없습니다.\n`;
+      return result;
+    }
+
+    adGroups.forEach((row, index) => {
+      const adGroup = row.adGroup;
+      const campaign = row.campaign;
+      const status = adGroup.status === 'ENABLED' ? '✅ 활성' : '⏸️ 일시정지';
+      
+      result += `${index + 1}. **${adGroup.name}**\n`;
+      result += `   📍 상태: ${status}\n`;
+      result += `   📢 캠페인: ${campaign.name}\n`;
+      result += `   🎯 타입: ${adGroup.type}\n`;
+      result += `   🆔 ID: ${adGroup.id}\n\n`;
+    });
+
+    return result;
+  }
+
+  formatAdGroupPerformance(adGroups, days) {
+    const periodText = getPeriodText(days);
+    
+    if (!adGroups || adGroups.length === 0) {
+      return `📊 **${periodText} Google Ads 광고그룹 성과**\n\nℹ️ 조회된 광고그룹 데이터가 없습니다.`;
+    }
+
+    let result = `📊 **${periodText} Google Ads 광고그룹 성과**\n\n`;
+    
+    adGroups.slice(0, 20).forEach((row, index) => {
+      const adGroup = row.adGroup;
+      const metrics = row.metrics;
+      
+      const cost = (parseInt(metrics.costMicros || 0) / 1000000).toFixed(2);
+      const impressions = parseInt(metrics.impressions || 0);
+      const clicks = parseInt(metrics.clicks || 0);
+      const conversions = parseFloat(metrics.conversions || 0);
+      const ctr = parseFloat(metrics.ctr || 0).toFixed(2);
+      const cpc = (parseInt(metrics.averageCpc || 0) / 1000000).toFixed(2);
+
+      result += `${index + 1}. **${adGroup.name}**\n`;
+      result += `   📢 캠페인: ${row.campaign.name}\n`;
+      result += `   💰 비용: $${cost}\n`;
+      result += `   👁️ 노출: ${formatNumber(impressions)}\n`;
+      result += `   🖱️ 클릭: ${formatNumber(clicks)}\n`;
+      result += `   📈 CTR: ${ctr}%\n`;
+      result += `   💵 CPC: $${cpc}\n`;
+      result += `   🎯 전환: ${formatNumber(conversions)}\n`;
+      result += `\n`;
+    });
+
+    return result;
+  }
+
+  formatAdList(ads, statusFilter) {
+    let result = `📋 **Google Ads 광고 목록 (${statusFilter})**\n\n`;
+    
+    if (!ads || ads.length === 0) {
+      result += `ℹ️ 조회된 광고가 없습니다.\n`;
+      return result;
+    }
+
+    ads.forEach((row, index) => {
+      const ad = row.adGroupAd.ad;
+      const adGroup = row.adGroup;
+      const campaign = row.campaign;
+      const status = row.adGroupAd.status === 'ENABLED' ? '✅ 활성' : '⏸️ 일시정지';
+      
+      result += `${index + 1}. **${ad.name || 'Untitled Ad'}**\n`;
+      result += `   📍 상태: ${status}\n`;
+      result += `   📢 캠페인: ${campaign.name}\n`;
+      result += `   📱 광고그룹: ${adGroup.name}\n`;
+      result += `   🎯 타입: ${ad.type}\n`;
+      result += `   🆔 ID: ${ad.id}\n\n`;
+    });
+
+    return result;
+  }
+
+  formatAdPerformance(ads, days) {
+    const periodText = getPeriodText(days);
+    
+    if (!ads || ads.length === 0) {
+      return `📊 **${periodText} Google Ads 광고 성과**\n\nℹ️ 조회된 광고 데이터가 없습니다.`;
+    }
+
+    let result = `📊 **${periodText} Google Ads 광고 성과**\n\n`;
+    
+    ads.slice(0, 15).forEach((row, index) => {
+      const ad = row.adGroupAd.ad;
+      const metrics = row.metrics;
+      
+      const cost = (parseInt(metrics.costMicros || 0) / 1000000).toFixed(2);
+      const impressions = parseInt(metrics.impressions || 0);
+      const clicks = parseInt(metrics.clicks || 0);
+      const conversions = parseFloat(metrics.conversions || 0);
+      const ctr = parseFloat(metrics.ctr || 0).toFixed(2);
+      const cpc = (parseInt(metrics.averageCpc || 0) / 1000000).toFixed(2);
+
+      result += `${index + 1}. **${ad.name || 'Untitled Ad'}**\n`;
+      result += `   📢 캠페인: ${row.campaign.name}\n`;
+      result += `   📱 광고그룹: ${row.adGroup.name}\n`;
+      result += `   💰 비용: $${cost}\n`;
+      result += `   👁️ 노출: ${formatNumber(impressions)}\n`;
+      result += `   🖱️ 클릭: ${formatNumber(clicks)}\n`;
+      result += `   📈 CTR: ${ctr}%\n`;
+      result += `   💵 CPC: $${cpc}\n`;
+      result += `   🎯 전환: ${formatNumber(conversions)}\n`;
+      result += `\n`;
+    });
+
+    return result;
+  }
+
+  /**
+   * Google Ads Mutate API 요청
+   */
+  async makeGoogleAdsMutateRequest(endpoint, requestBody) {
+    const url = `https://googleads.googleapis.com/v16/customers/${CUSTOMER_ID}/${endpoint}`;
+    
+    const config = {
+      method: 'POST',
+      url,
+      headers: {
+        'Authorization': `Bearer ${this.accessToken}`,
+        'developer-token': DEVELOPER_TOKEN,
+        'Content-Type': 'application/json'
+      },
+      data: requestBody
+    };
+    
+    try {
+      const response = await axios(config);
+      return response.data;
+    } catch (error) {
+      console.error('Google Ads Mutate API 요청 실패:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data
+      });
+      
+      let errorMessage = error.message;
+      if (error.response?.data?.error) {
+        const errorData = error.response.data.error;
+        if (errorData.message) {
+          errorMessage = errorData.message;
+        }
+      }
+      
+      throw new Error(errorMessage);
+    }
   }
 }

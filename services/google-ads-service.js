@@ -348,8 +348,9 @@ export class GoogleAdsService {
           metrics.average_cpc,
           metrics.average_cpm,
           metrics.conversions,
-          metrics.conversions_value,
-          metrics.conversion_rate
+          metrics.cost_per_conversion,
+          metrics.conversions_value_per_cost,
+          metrics.conversions_from_interactions_rate
         FROM campaign
         WHERE segments.date BETWEEN '${start_date}' AND '${end_date}'
       `;

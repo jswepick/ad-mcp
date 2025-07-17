@@ -397,7 +397,7 @@ export class GoogleAdsService {
       // 상태 필터 추가
       if (statusFilter !== 'ALL') {
         const googleStatus = statusFilter === 'ENABLED' ? 'ENABLED' : 'PAUSED';
-        query += ` WHERE campaign.status = ${googleStatus}`;
+        query += ` WHERE campaign.status = '${googleStatus}'`;
       }
 
       query += ` LIMIT 20`;
@@ -645,8 +645,8 @@ export class GoogleAdsService {
   async makeGoogleAdsRequest(query) {
     const accessToken = await this.getAccessToken();
     
-    // Customer ID 처리 (숫자만)
-    const customerId = CUSTOMER_ID.toString();
+    // Customer ID 처리 (하이픈 제거)
+    const customerId = CUSTOMER_ID.replace(/-/g, '');
     
     // Google Ads REST API 엔드포인트
     const url = `${BASE_URL}/customers/${customerId}/googleAds:search`;
@@ -918,8 +918,8 @@ export class GoogleAdsService {
     result += `📋 **키워드별 상세 성과 (상위 ${Math.min(keywords.length, 20)}개)**\n\n`;
     keywords.slice(0, 20).forEach((row, index) => {
       const campaign = row.campaign;
-      const adGroup = row.adGroup;
-      const keyword = row.adGroupCriterion.keyword;
+      const adGroup = row.ad_group;
+      const keyword = row.ad_group_criterion.keyword;
       const metrics = row.metrics;
       
       const spend = parseInt(metrics.costMicros || 0) / 1000000;
@@ -992,7 +992,7 @@ export class GoogleAdsService {
     try {
       // console.log('📋 Google Ads 광고그룹 목록 조회 중...');
       
-      await this.ensureValidToken();
+      await this.getAccessToken();
       
       let gaqlQuery = `
         SELECT 
@@ -1050,7 +1050,7 @@ export class GoogleAdsService {
     try {
       // console.log('📊 Google Ads 광고그룹 성과 조회 중...');
       
-      await this.ensureValidToken();
+      await this.getAccessToken();
       
       const { start_date, end_date } = getGoogleDateRange(days);
       
@@ -1067,8 +1067,7 @@ export class GoogleAdsService {
           metrics.conversions,
           metrics.conversions_value
         FROM ad_group
-        WHERE segments.date >= '${start_date}' 
-          AND segments.date <= '${end_date}'
+        WHERE segments.date BETWEEN '${start_date}' AND '${end_date}'
       `;
       
       const conditions = [];
@@ -1118,7 +1117,7 @@ export class GoogleAdsService {
     try {
       // console.log(`🔄 Google Ads 광고그룹 ${adGroupId} 상태 변경: ${status}`);
       
-      await this.ensureValidToken();
+      await this.getAccessToken();
       
       const requestBody = {
         operations: [
@@ -1160,7 +1159,7 @@ export class GoogleAdsService {
     try {
       // console.log(`🔄 Google Ads 광고그룹 ${adGroupIds.length}개 일괄 상태 변경: ${status}`);
       
-      await this.ensureValidToken();
+      await this.getAccessToken();
       
       const operations = adGroupIds.map(id => ({
         update: {
@@ -1202,7 +1201,7 @@ export class GoogleAdsService {
     try {
       // console.log('📋 Google Ads 광고 목록 조회 중...');
       
-      await this.ensureValidToken();
+      await this.getAccessToken();
       
       let gaqlQuery = `
         SELECT 
@@ -1266,7 +1265,7 @@ export class GoogleAdsService {
     try {
       // console.log('📊 Google Ads 광고 성과 조회 중...');
       
-      await this.ensureValidToken();
+      await this.getAccessToken();
       
       const { start_date, end_date } = getGoogleDateRange(days);
       
@@ -1284,8 +1283,7 @@ export class GoogleAdsService {
           metrics.conversions,
           metrics.conversions_value
         FROM ad_group_ad
-        WHERE segments.date >= '${start_date}' 
-          AND segments.date <= '${end_date}'
+        WHERE segments.date BETWEEN '${start_date}' AND '${end_date}'
       `;
       
       const conditions = [];
@@ -1339,7 +1337,7 @@ export class GoogleAdsService {
     try {
       // console.log(`🔄 Google Ads 광고 ${adId} 상태 변경: ${status}`);
       
-      await this.ensureValidToken();
+      await this.getAccessToken();
       
       const requestBody = {
         operations: [
@@ -1381,7 +1379,7 @@ export class GoogleAdsService {
     try {
       // console.log(`🔄 Google Ads 광고 ${adIds.length}개 일괄 상태 변경: ${status}`);
       
-      await this.ensureValidToken();
+      await this.getAccessToken();
       
       const operations = adIds.map(id => ({
         update: {
@@ -1428,7 +1426,7 @@ export class GoogleAdsService {
     }
 
     adGroups.forEach((row, index) => {
-      const adGroup = row.adGroup;
+      const adGroup = row.ad_group;
       const campaign = row.campaign;
       const status = adGroup.status === 'ENABLED' ? '✅ 활성' : '⏸️ 일시정지';
       
@@ -1452,7 +1450,7 @@ export class GoogleAdsService {
     let result = `📊 **${periodText} Google Ads 광고그룹 성과**\n\n`;
     
     adGroups.slice(0, 20).forEach((row, index) => {
-      const adGroup = row.adGroup;
+      const adGroup = row.ad_group;
       const metrics = row.metrics;
       
       const cost = (parseInt(metrics.costMicros || 0) / 1000000).toFixed(2);
@@ -1485,10 +1483,10 @@ export class GoogleAdsService {
     }
 
     ads.forEach((row, index) => {
-      const ad = row.adGroupAd.ad;
-      const adGroup = row.adGroup;
+      const ad = row.ad_group_ad.ad;
+      const adGroup = row.ad_group;
       const campaign = row.campaign;
-      const status = row.adGroupAd.status === 'ENABLED' ? '✅ 활성' : '⏸️ 일시정지';
+      const status = row.ad_group_ad.status === 'ENABLED' ? '✅ 활성' : '⏸️ 일시정지';
       
       result += `${index + 1}. **${ad.name || 'Untitled Ad'}**\n`;
       result += `   📍 상태: ${status}\n`;
@@ -1511,7 +1509,7 @@ export class GoogleAdsService {
     let result = `📊 **${periodText} Google Ads 광고 성과**\n\n`;
     
     ads.slice(0, 15).forEach((row, index) => {
-      const ad = row.adGroupAd.ad;
+      const ad = row.ad_group_ad.ad;
       const metrics = row.metrics;
       
       const cost = (parseInt(metrics.costMicros || 0) / 1000000).toFixed(2);
@@ -1540,7 +1538,8 @@ export class GoogleAdsService {
    * Google Ads Mutate API 요청
    */
   async makeGoogleAdsMutateRequest(endpoint, requestBody) {
-    const url = `https://googleads.googleapis.com/v16/customers/${CUSTOMER_ID}/${endpoint}`;
+    const customerId = CUSTOMER_ID.replace(/-/g, '');
+    const url = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${customerId}/${endpoint}`;
     
     const config = {
       method: 'POST',

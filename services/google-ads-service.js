@@ -1467,13 +1467,13 @@ export class GoogleAdsService {
 
       result += `${index + 1}. **${adGroup.name}**\n`;
       result += `   📢 캠페인: ${row.campaign.name}\n`;
-      result += `   💰 비용: $${cost}\n`;
+      result += `   💰 비용: ${cost}\n`;
       result += `   👁️ 노출: ${formatNumber(impressions)}\n`;
       result += `   🖱️ 클릭: ${formatNumber(clicks)}\n`;
       result += `   📈 CTR: ${ctr}%\n`;
-      result += `   💵 CPC: $${cpc}\n`;
+      result += `   💵 CPC: ${cpc}\n`;
       result += `   🎯 전환: ${formatNumber(conversions)}\n`;
-      result += `   💰 전환당비용: $${costPerConversion}\n`;
+      result += `   💰 전환당비용: ${costPerConversion}\n`;
       result += `   🔄 전환율: ${conversionRate}%\n`;
       result += `\n`;
     });
@@ -1531,13 +1531,13 @@ export class GoogleAdsService {
       result += `${index + 1}. **${ad.name || 'Untitled Ad'}**\n`;
       result += `   📢 캠페인: ${row.campaign.name}\n`;
       result += `   📱 광고그룹: ${row.ad_group.name}\n`;
-      result += `   💰 비용: $${cost}\n`;
+      result += `   💰 비용: ${cost}\n`;
       result += `   👁️ 노출: ${formatNumber(impressions)}\n`;
       result += `   🖱️ 클릭: ${formatNumber(clicks)}\n`;
       result += `   📈 CTR: ${ctr}%\n`;
-      result += `   💵 CPC: $${cpc}\n`;
+      result += `   💵 CPC: ${cpc}\n`;
       result += `   🎯 전환: ${formatNumber(conversions)}\n`;
-      result += `   💰 전환당비용: $${costPerConversion}\n`;
+      result += `   💰 전환당비용: ${costPerConversion}\n`;
       result += `   🔄 전환율: ${conversionRate}%\n`;
       result += `\n`;
     });

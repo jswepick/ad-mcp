@@ -1059,6 +1059,7 @@ export class GoogleAdsService {
         SELECT 
           ad_group.id,
           ad_group.name,
+          ad_group.status,
           campaign.name,
           metrics.impressions,
           metrics.clicks,
@@ -1070,6 +1071,7 @@ export class GoogleAdsService {
           metrics.conversions_from_interactions_rate
         FROM ad_group
         WHERE segments.date BETWEEN '${start_date}' AND '${end_date}'
+          AND metrics.impressions > 0
       `;
       
       const conditions = [];
@@ -1285,8 +1287,11 @@ export class GoogleAdsService {
           metrics.conversions,
           metrics.cost_per_conversion,
           metrics.conversions_from_interactions_rate,
+          ad_group_ad.status,
+          ad_group_ad.ad.type
         FROM ad_group_ad
         WHERE segments.date BETWEEN '${start_date}' AND '${end_date}'
+          AND metrics.impressions > 0
       `;
       
       const conditions = [];
@@ -1453,7 +1458,7 @@ export class GoogleAdsService {
     let result = `📊 **${periodText} Google Ads 광고그룹 성과**\n\n`;
     
     adGroups.slice(0, 20).forEach((row, index) => {
-      const adGroup = row.ad_group;
+      const adGroup = row.ad_group || row.adGroup;
       const metrics = row.metrics;
       
       const cost = (parseInt(metrics.costMicros || 0) / 1000000).toFixed(2);
@@ -1465,15 +1470,18 @@ export class GoogleAdsService {
       const ctr = parseFloat(metrics.ctr || 0).toFixed(2);
       const cpc = (parseInt(metrics.averageCpc || 0) / 1000000).toFixed(2);
 
-      result += `${index + 1}. **${adGroup.name}**\n`;
-      result += `   📢 캠페인: ${row.campaign.name}\n`;
-      result += `   💰 비용: ${cost}\n`;
+      const status = adGroup?.status === 'ENABLED' ? '✅ 활성' : '⏸️ 일시정지';
+      
+      result += `${index + 1}. **${adGroup?.name || 'N/A'}**\n`;
+      result += `   📍 상태: ${status}\n`;
+      result += `   📢 캠페인: ${row.campaign?.name || 'N/A'}\n`;
+      result += `   💰 비용: ₩${Math.round(cost)}\n`;
       result += `   👁️ 노출: ${formatNumber(impressions)}\n`;
       result += `   🖱️ 클릭: ${formatNumber(clicks)}\n`;
       result += `   📈 CTR: ${ctr}%\n`;
-      result += `   💵 CPC: ${cpc}\n`;
+      result += `   💵 CPC: ₩${Math.round(cpc)}\n`;
       result += `   🎯 전환: ${formatNumber(conversions)}\n`;
-      result += `   💰 전환당비용: ${costPerConversion}\n`;
+      result += `   💰 전환당비용: ₩${Math.round(costPerConversion)}\n`;
       result += `   🔄 전환율: ${conversionRate}%\n`;
       result += `\n`;
     });
@@ -1516,7 +1524,9 @@ export class GoogleAdsService {
     let result = `📊 **${periodText} Google Ads 광고 성과**\n\n`;
     
     ads.slice(0, 15).forEach((row, index) => {
-      const ad = row.ad_group_ad.ad;
+      const ad = row.ad_group_ad?.ad || row.adGroupAd?.ad;
+      const adGroup = row.ad_group || row.adGroup;
+      const adStatus = row.ad_group_ad?.status || row.adGroupAd?.status;
       const metrics = row.metrics;
       
       const cost = (parseInt(metrics.costMicros || 0) / 1000000).toFixed(2);
@@ -1528,16 +1538,20 @@ export class GoogleAdsService {
       const ctr = parseFloat(metrics.ctr || 0).toFixed(2);
       const cpc = (parseInt(metrics.averageCpc || 0) / 1000000).toFixed(2);
 
-      result += `${index + 1}. **${ad.name || 'Untitled Ad'}**\n`;
-      result += `   📢 캠페인: ${row.campaign.name}\n`;
-      result += `   📱 광고그룹: ${row.ad_group.name}\n`;
-      result += `   💰 비용: ${cost}\n`;
+      const displayStatus = adStatus === 'ENABLED' ? '✅ 활성' : '⏸️ 일시정지';
+      
+      result += `${index + 1}. **${ad?.name || ad?.id || 'Untitled Ad'}**\n`;
+      result += `   📍 상태: ${displayStatus}\n`;
+      result += `   🎯 타입: ${ad?.type || 'N/A'}\n`;
+      result += `   📢 캠페인: ${row.campaign?.name || 'N/A'}\n`;
+      result += `   📱 광고그룹: ${adGroup?.name || 'N/A'}\n`;
+      result += `   💰 비용: ₩${Math.round(cost)}\n`;
       result += `   👁️ 노출: ${formatNumber(impressions)}\n`;
       result += `   🖱️ 클릭: ${formatNumber(clicks)}\n`;
       result += `   📈 CTR: ${ctr}%\n`;
-      result += `   💵 CPC: ${cpc}\n`;
+      result += `   💵 CPC: ₩${Math.round(cpc)}\n`;
       result += `   🎯 전환: ${formatNumber(conversions)}\n`;
-      result += `   💰 전환당비용: ${costPerConversion}\n`;
+      result += `   💰 전환당비용: ₩${Math.round(costPerConversion)}\n`;
       result += `   🔄 전환율: ${conversionRate}%\n`;
       result += `\n`;
     });

@@ -349,7 +349,6 @@ export class GoogleAdsService {
           metrics.average_cpm,
           metrics.conversions,
           metrics.cost_per_conversion,
-          metrics.conversions_value_per_cost,
           metrics.conversions_from_interactions_rate
         FROM campaign
         WHERE segments.date BETWEEN '${start_date}' AND '${end_date}'
@@ -466,6 +465,8 @@ export class GoogleAdsService {
           metrics.ctr,
           metrics.average_cpc,
           metrics.conversions,
+          metrics.cost_per_conversion,
+          metrics.conversions_from_interactions_rate,
           metrics.quality_score
         FROM keyword_view
         WHERE segments.date BETWEEN '${start_date}' AND '${end_date}'
@@ -822,7 +823,6 @@ export class GoogleAdsService {
     let totalImpressions = 0;
     let totalClicks = 0;
     let totalConversions = 0;
-    let totalConversionsValue = 0;
 
     campaigns.forEach(row => {
       const metrics = row.metrics;
@@ -830,7 +830,6 @@ export class GoogleAdsService {
       totalImpressions += parseInt(metrics.impressions || 0);
       totalClicks += parseInt(metrics.clicks || 0);
       totalConversions += parseFloat(metrics.conversions || 0);
-      totalConversionsValue += parseFloat(metrics.conversionsValue || 0);
     });
 
     const overallCTR = totalImpressions > 0 ? (totalClicks / totalImpressions * 100).toFixed(2) : 0;
@@ -844,7 +843,6 @@ export class GoogleAdsService {
     result += `👁️ 노출수: ${formatNumber(totalImpressions)}\n`;
     result += `🖱️ 클릭수: ${formatNumber(totalClicks)}\n`;
     result += `🎯 전환수: ${formatNumber(totalConversions)}\n`;
-    result += `💵 전환가치: ${formatCurrency(totalConversionsValue)}\n`;
     result += `📈 CTR: ${overallCTR}%\n`;
     result += `💵 CPC: ${formatCurrency(overallCPC)}\n`;
     result += `📊 CPM: ${formatCurrency(overallCPM)}\n`;
@@ -859,7 +857,8 @@ export class GoogleAdsService {
       const impressions = parseInt(metrics.impressions || 0);
       const clicks = parseInt(metrics.clicks || 0);
       const conversions = parseFloat(metrics.conversions || 0);
-      const conversionsValue = parseFloat(metrics.conversionsValue || 0);
+      const costPerConversion = parseInt(metrics.costPerConversion || 0) / 1000000;
+      const conversionRate = parseFloat(metrics.conversionsFromInteractionsRate || 0) * 100;
       const ctr = parseFloat(metrics.ctr || 0).toFixed(2);
       const cpc = parseInt(metrics.averageCpc || 0) / 1000000;
       const cpm = parseInt(metrics.averageCpm || 0) / 1000000;
@@ -870,8 +869,9 @@ export class GoogleAdsService {
       result += `   👁️ 노출: ${formatNumber(impressions)}\n`;
       result += `   🖱️ 클릭: ${formatNumber(clicks)}\n`;
       result += `   🎯 전환: ${formatNumber(conversions)}\n`;
-      result += `   💵 전환가치: ${formatCurrency(conversionsValue)}\n`;
+      result += `   💰 전환당비용: ${formatCurrency(costPerConversion)}\n`;
       result += `   📈 CTR: ${ctr}%\n`;
+      result += `   🔄 전환율: ${conversionRate.toFixed(2)}%\n`;
       result += `   💵 CPC: ${formatCurrency(cpc)}\n`;
       result += `   📊 CPM: ${formatCurrency(cpm)}\n`;
       result += `\n`;
@@ -1066,7 +1066,8 @@ export class GoogleAdsService {
           metrics.ctr,
           metrics.average_cpc,
           metrics.conversions,
-          metrics.conversions_value
+          metrics.cost_per_conversion,
+          metrics.conversions_from_interactions_rate
         FROM ad_group
         WHERE segments.date BETWEEN '${start_date}' AND '${end_date}'
       `;
@@ -1282,7 +1283,8 @@ export class GoogleAdsService {
           metrics.ctr,
           metrics.average_cpc,
           metrics.conversions,
-          metrics.conversions_value
+          metrics.cost_per_conversion,
+          metrics.conversions_from_interactions_rate,
         FROM ad_group_ad
         WHERE segments.date BETWEEN '${start_date}' AND '${end_date}'
       `;
@@ -1458,6 +1460,8 @@ export class GoogleAdsService {
       const impressions = parseInt(metrics.impressions || 0);
       const clicks = parseInt(metrics.clicks || 0);
       const conversions = parseFloat(metrics.conversions || 0);
+      const costPerConversion = (parseInt(metrics.costPerConversion || 0) / 1000000).toFixed(2);
+      const conversionRate = (parseFloat(metrics.conversionsFromInteractionsRate || 0) * 100).toFixed(2);
       const ctr = parseFloat(metrics.ctr || 0).toFixed(2);
       const cpc = (parseInt(metrics.averageCpc || 0) / 1000000).toFixed(2);
 
@@ -1469,6 +1473,8 @@ export class GoogleAdsService {
       result += `   📈 CTR: ${ctr}%\n`;
       result += `   💵 CPC: $${cpc}\n`;
       result += `   🎯 전환: ${formatNumber(conversions)}\n`;
+      result += `   💰 전환당비용: $${costPerConversion}\n`;
+      result += `   🔄 전환율: ${conversionRate}%\n`;
       result += `\n`;
     });
 
@@ -1517,18 +1523,22 @@ export class GoogleAdsService {
       const impressions = parseInt(metrics.impressions || 0);
       const clicks = parseInt(metrics.clicks || 0);
       const conversions = parseFloat(metrics.conversions || 0);
+      const costPerConversion = (parseInt(metrics.costPerConversion || 0) / 1000000).toFixed(2);
+      const conversionRate = (parseFloat(metrics.conversionsFromInteractionsRate || 0) * 100).toFixed(2);
       const ctr = parseFloat(metrics.ctr || 0).toFixed(2);
       const cpc = (parseInt(metrics.averageCpc || 0) / 1000000).toFixed(2);
 
       result += `${index + 1}. **${ad.name || 'Untitled Ad'}**\n`;
       result += `   📢 캠페인: ${row.campaign.name}\n`;
-      result += `   📱 광고그룹: ${row.adGroup.name}\n`;
+      result += `   📱 광고그룹: ${row.ad_group.name}\n`;
       result += `   💰 비용: $${cost}\n`;
       result += `   👁️ 노출: ${formatNumber(impressions)}\n`;
       result += `   🖱️ 클릭: ${formatNumber(clicks)}\n`;
       result += `   📈 CTR: ${ctr}%\n`;
       result += `   💵 CPC: $${cpc}\n`;
       result += `   🎯 전환: ${formatNumber(conversions)}\n`;
+      result += `   💰 전환당비용: $${costPerConversion}\n`;
+      result += `   🔄 전환율: ${conversionRate}%\n`;
       result += `\n`;
     });
 

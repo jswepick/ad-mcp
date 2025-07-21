@@ -22,20 +22,14 @@ import { TikTokAdsService } from './services/tiktok-ads-service.js';
 const PORT = process.env.PORT || 3000;
 
 console.error('🚀 Multi-Platform Ads MCP Server 시작');
-console.error('환경변수 확인:');
 
-// Facebook 환경변수
+// 플랫폼 환경변수 확인
 const facebookEnabled = !!(process.env.META_ACCESS_TOKEN && process.env.META_AD_ACCOUNT_ID);
-console.error('📘 Facebook Ads:', facebookEnabled ? '✅ 활성화' : '❌ 비활성화 (환경변수 누락)');
-
-// Google 환경변수  
 const googleEnabled = !!(process.env.GOOGLE_ADS_CLIENT_ID && process.env.GOOGLE_ADS_CUSTOMER_ID);
-console.error('🔍 Google Ads:', googleEnabled ? '✅ 활성화' : '❌ 비활성화 (환경변수 누락)');
-
-// TikTok 환경변수
 const tiktokEnabled = !!(process.env.TIKTOK_ACCESS_TOKEN && process.env.TIKTOK_ADVERTISER_ID);
-console.error('🎵 TikTok Ads:', tiktokEnabled ? '✅ 활성화' : '❌ 비활성화 (환경변수 누락)');
 
+const enabledPlatforms = [facebookEnabled, googleEnabled, tiktokEnabled].filter(Boolean).length;
+console.error(`📊 ${enabledPlatforms}개 플랫폼 초기화 완료`);
 console.error('PORT:', PORT);
 
 class MultiPlatformAdsServer {
@@ -57,18 +51,17 @@ class MultiPlatformAdsServer {
     
     if (facebookEnabled) {
       this.services.facebook = new FacebookAdsService();
-      console.error('📘 Facebook Ads 서비스 초기화 완료');
     }
     
     if (googleEnabled) {
       this.services.google = new GoogleAdsService();
-      console.error('🔍 Google Ads 서비스 초기화 완료');
     }
     
     if (tiktokEnabled) {
       this.services.tiktok = new TikTokAdsService();
-      console.error('🎵 TikTok Ads 서비스 초기화 완료');
     }
+    
+    console.error('서비스 초기화 완료');
     
     this.setupToolHandlers();
     this.server.onerror = (error) => console.error('[MCP Error]', error);
@@ -83,10 +76,7 @@ class MultiPlatformAdsServer {
     Object.entries(this.services).forEach(([platform, service]) => {
       const platformTools = service.getTools();
       allTools.push(...platformTools);
-      console.error(`${platform} 플랫폼: ${platformTools.length}개 도구 로드됨`);
     });
-    
-    console.error(`총 ${allTools.length}개 도구가 로드되었습니다.`);
     return allTools;
   }
 
@@ -236,11 +226,10 @@ class MultiPlatformAdsServer {
     // MCP POST endpoint
     app.post('/message', async (req, res) => {
       console.error('=== 요청 시작 ===');
-      console.error('Request body:', JSON.stringify(req.body, null, 2));
       
       try {
         const { method, params } = req.body;
-        console.error('Method:', method, 'Params:', params);
+        console.error('Method:', method, 'Request ID:', req.body.id);
         
         if (method === 'initialize') {
           const response = {
@@ -266,7 +255,6 @@ class MultiPlatformAdsServer {
         }
         
         if (method === 'tools/list') {
-          console.error('tools/list 호출 중...');
           
           const tools = this.getAllTools();
           
@@ -287,14 +275,12 @@ class MultiPlatformAdsServer {
             result: { tools: tools }
           };
           
-          console.error('tools/list 완료, 도구 개수:', tools.length);
           res.json(response);
           return;
         }
         
         if (method === 'tools/call') {
           const { name, arguments: args } = params;
-          console.error('Tool name:', name, 'Args:', args);
           
           console.error(`=== ${name} 실행 시작 ===`);
           
@@ -322,14 +308,12 @@ class MultiPlatformAdsServer {
           // 서비스에 도구 호출 위임
           const result = await service.handleToolCall(actualToolName, args || {});
           
-          console.error('=== 응답 준비 중 ===');
           const response = {
             jsonrpc: "2.0",
             id: req.body.id,
             result: result
           };
           
-          console.error('응답 크기:', JSON.stringify(response).length);
           res.json(response);
           console.error('=== 요청 완료 ===');
           return;
@@ -339,8 +323,7 @@ class MultiPlatformAdsServer {
         
       } catch (error) {
         console.error('=== 에러 발생 ===');
-        console.error('Error message:', error.message);
-        console.error('Error stack:', error.stack);
+        console.error('Error:', error.message);
         
         res.status(500).json({
           jsonrpc: "2.0",
@@ -383,8 +366,8 @@ class MultiPlatformAdsServer {
       console.error(`🔗 SSE endpoint: http://localhost:${PORT}/sse`);
       console.error(`💬 Message endpoint: http://localhost:${PORT}/message`);
       
-      const enabledPlatforms = Object.keys(this.services);
-      console.error(`🎯 활성화된 플랫폼: ${enabledPlatforms.join(', ') || '없음'}`);
+      const platformCount = Object.keys(this.services).length;
+      console.error(`🎯 ${platformCount}개 플랫폼 서비스 준비됨`);
     });
   }
 }

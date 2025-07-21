@@ -138,7 +138,6 @@ export class TikTokAdsService {
 
   async getCampaignPerformance(days, campaignIds) {
     try {
-      console.log('📊 TikTok Ads 캠페인 성과 조회 중...');
       
       const { start_date, end_date } = getTikTokDateRange(days);
       
@@ -193,7 +192,6 @@ export class TikTokAdsService {
 
   async getCampaignList(statusFilter) {
     try {
-      console.log('📋 TikTok Ads 캠페인 목록 조회 중...');
 
       const params = {
         advertiser_id: ADVERTISER_ID,
@@ -216,7 +214,6 @@ export class TikTokAdsService {
 
       const response = await this.makeTikTokRequest('/campaign/get/', params);
       
-      console.log('✅ TikTok 캠페인 조회 성공');
 
       return {
         content: [
@@ -243,7 +240,6 @@ export class TikTokAdsService {
 
   async toggleCampaignStatus(campaignId, status) {
     try {
-      console.log(`🔄 TikTok 캠페인 ${campaignId} 상태 변경: ${status}`);
 
       const params = {
         advertiser_id: ADVERTISER_ID,
@@ -277,7 +273,6 @@ export class TikTokAdsService {
 
   async getAdGroupPerformance(days, campaignId) {
     try {
-      console.log('🎯 TikTok Ads 광고그룹 성과 조회 중...');
       
       const { start_date, end_date } = getTikTokDateRange(days);
       
@@ -331,7 +326,6 @@ export class TikTokAdsService {
 
   async getCreativePerformance(days, adGroupId) {
     try {
-      console.log('🎨 TikTok Ads 소재 성과 조회 중...');
       
       const { start_date, end_date } = getTikTokDateRange(days);
       
@@ -390,10 +384,6 @@ export class TikTokAdsService {
 
   async testConnection() {
     try {
-      console.log('🔧 TikTok Ads API 연결 테스트 시작...');
-      
-      // 1단계: Advertiser 정보 확인
-      console.log('📋 Advertiser 정보 확인...');
       
       const params = {
         advertiser_ids: `["${ADVERTISER_ID}"]`,
@@ -408,7 +398,6 @@ export class TikTokAdsService {
 
       const advertiser = response.data.list[0];
       
-      console.log('✅ TikTok Ads API 연결 성공');
       
       return {
         content: [
@@ -430,11 +419,6 @@ export class TikTokAdsService {
       };
       
     } catch (error) {
-      console.error('❌ TikTok Ads API 연결 테스트 실패:', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data
-      });
       
       let diagnosis = '';
       if (error.response?.status === 40001) {
@@ -471,11 +455,6 @@ export class TikTokAdsService {
     const url = `${BASE_URL}${endpoint}`;
     
     try {
-      console.log('🔍 TikTok Ads API 요청:', {
-        url,
-        method,
-        advertiser_id: ADVERTISER_ID
-      });
 
       const config = {
         method,
@@ -494,10 +473,6 @@ export class TikTokAdsService {
 
       const response = await axios(config);
 
-      console.log('✅ TikTok Ads API 응답:', {
-        status: response.status,
-        hasData: !!response.data?.data
-      });
 
       // TikTok API 응답 구조 확인
       if (response.data?.code !== 0) {
@@ -506,16 +481,6 @@ export class TikTokAdsService {
 
       return response.data;
     } catch (error) {
-      // 상세한 에러 로깅
-      const errorInfo = {
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-        advertiser_id: ADVERTISER_ID,
-        endpoint
-      };
-      
-      console.error('❌ TikTok Ads API 요청 실패:', errorInfo);
       
       // 에러 메시지 생성
       let errorMessage = error.message;

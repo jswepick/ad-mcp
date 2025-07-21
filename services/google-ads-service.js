@@ -331,7 +331,6 @@ export class GoogleAdsService {
 
   async getCampaignPerformance(days, campaignIds) {
     try {
-      // console.error('📊 Google Ads 캠페인 성과 조회 중...');
       
       const { start_date, end_date } = getGoogleDateRange(days);
       
@@ -374,7 +373,6 @@ export class GoogleAdsService {
       };
 
     } catch (error) {
-      // console.error('Google Ads 캠페인 성과 조회 실패:', error.message);
       const periodText = getPeriodText(days);
       return {
         content: [
@@ -389,7 +387,6 @@ export class GoogleAdsService {
 
   async getCampaignList(statusFilter) {
     try {
-      // console.log('📋 Google Ads 캠페인 목록 조회 중...');
 
       // 간단한 GAQL 쿼리 작성
       let query = `SELECT campaign.id, campaign.name, campaign.status FROM campaign`;
@@ -402,12 +399,10 @@ export class GoogleAdsService {
 
       query += ` LIMIT 20`;
 
-      console.log('GAQL Query:', query);
 
       // REST API로 Google Ads 호출
       const response = await this.makeGoogleAdsRequest(query);
       
-      // console.log('✅ 캠페인 조회 성공');
 
       return {
         content: [
@@ -419,7 +414,6 @@ export class GoogleAdsService {
       };
 
     } catch (error) {
-      // console.error('❌ Google Ads 캠페인 목록 조회 실패:', error);
       
       return {
         content: [
@@ -446,7 +440,6 @@ export class GoogleAdsService {
 
   async getKeywordPerformance(days, campaignId) {
     try {
-      // console.log('🔍 Google Ads 키워드 성과 조회 중...');
       
       const { start_date, end_date } = getGoogleDateRange(days);
       
@@ -492,7 +485,6 @@ export class GoogleAdsService {
       };
 
     } catch (error) {
-      // console.error('Google Ads 키워드 성과 조회 실패:', error.message);
       const periodText = getPeriodText(days);
       return {
         content: [
@@ -521,20 +513,16 @@ export class GoogleAdsService {
 
   async testConnection() {
     try {
-      // console.log('🔧 Google Ads API 연결 테스트 시작...');
       
       // 1단계: OAuth 토큰 테스트
       const accessToken = await this.getAccessToken();
-      // console.log('✅ OAuth 토큰 갱신 성공');
       
       // 2단계: Customer ID 정보 확인
       const customerId = CUSTOMER_ID.replace(/-/g, '');
-      // console.log('📋 Customer ID:', customerId);
       
       // 3단계: 간단한 API 호출 테스트 (Customer 정보 조회)
       const customerUrl = `${BASE_URL}/customers/${customerId}`;
       
-      // console.log('🔍 Customer 정보 요청:', customerUrl);
       
       const response = await axios.get(customerUrl, {
         headers: {
@@ -544,7 +532,6 @@ export class GoogleAdsService {
         }
       });
       
-      // console.log('✅ Customer 정보 조회 성공');
       
       return {
         content: [
@@ -566,11 +553,6 @@ export class GoogleAdsService {
       };
       
     } catch (error) {
-      // console.error('❌ Google Ads API 연결 테스트 실패:', {
-      //   message: error.message,
-      //   status: error.response?.status,
-      //   data: error.response?.data
-      // });
       
       let diagnosis = '';
       if (error.response?.status === 401) {
@@ -613,7 +595,6 @@ export class GoogleAdsService {
     }
 
     try {
-      // console.log('🔄 Google Ads OAuth 토큰 갱신 중...');
       
       const params = new URLSearchParams({
         client_id: CLIENT_ID,
@@ -632,11 +613,9 @@ export class GoogleAdsService {
       // 토큰 만료 시간 설정 (응답에서 받은 expires_in - 5분 여유)
       this.tokenExpiryTime = Date.now() + (response.data.expires_in - 300) * 1000;
       
-      // console.log('✅ Google Ads OAuth 토큰 갱신 완료');
       return this.accessToken;
 
     } catch (error) {
-      // console.error('❌ Google Ads OAuth 토큰 갱신 실패:', error.response?.data || error.message);
       throw new Error(`Google Ads OAuth 인증 실패: ${error.response?.data?.error_description || error.message}`);
     }
   }
@@ -654,17 +633,11 @@ export class GoogleAdsService {
     const url = `${BASE_URL}/customers/${customerId}/googleAds:search`;
     
     try {
-      // console.log('🔍 Google Ads API 요청:', {
-      //   url,
-      //   customerId,
-      //   apiVersion: GOOGLE_ADS_API_VERSION
-      // });
 
       const requestBody = {
         query: query.trim()
       };
 
-      // console.log('요청 본문:', requestBody);
 
       const response = await axios.post(url, requestBody, {
         headers: {
@@ -675,23 +648,10 @@ export class GoogleAdsService {
         }
       });
 
-      // console.log('✅ Google Ads API 응답:', {
-      //   status: response.status,
-      //   hasResults: !!response.data?.results
-      // });
 
       return response.data;
     } catch (error) {
-      // 상세한 에러 로깅
-      const errorInfo = {
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-        customerId,
-        query: query.trim()
-      };
       
-      // console.error('❌ Google Ads API 요청 실패:', errorInfo);
       
       // 에러 메시지 생성
       let errorMessage = error.message;
@@ -991,7 +951,6 @@ export class GoogleAdsService {
 
   async getAdGroupList(campaignId, statusFilter) {
     try {
-      // console.log('📋 Google Ads 광고그룹 목록 조회 중...');
       
       await this.getAccessToken();
       
@@ -1034,7 +993,6 @@ export class GoogleAdsService {
       };
       
     } catch (error) {
-      // console.error('Google Ads 광고그룹 목록 조회 실패:', error.message);
       
       return {
         content: [
@@ -1049,7 +1007,6 @@ export class GoogleAdsService {
 
   async getAdGroupPerformance(days, adGroupIds, campaignId) {
     try {
-      // console.log('📊 Google Ads 광고그룹 성과 조회 중...');
       
       await this.getAccessToken();
       
@@ -1103,7 +1060,6 @@ export class GoogleAdsService {
       };
       
     } catch (error) {
-      // console.error('Google Ads 광고그룹 성과 조회 실패:', error.message);
       const periodText = getPeriodText(days);
       
       return {
@@ -1119,7 +1075,6 @@ export class GoogleAdsService {
 
   async toggleAdGroupStatus(adGroupId, status) {
     try {
-      // console.log(`🔄 Google Ads 광고그룹 ${adGroupId} 상태 변경: ${status}`);
       
       await this.getAccessToken();
       
@@ -1147,7 +1102,6 @@ export class GoogleAdsService {
       };
       
     } catch (error) {
-      // console.error('Google Ads 광고그룹 상태 변경 실패:', error.message);
       return {
         content: [
           {
@@ -1161,7 +1115,6 @@ export class GoogleAdsService {
 
   async bulkToggleAdGroups(adGroupIds, status) {
     try {
-      // console.log(`🔄 Google Ads 광고그룹 ${adGroupIds.length}개 일괄 상태 변경: ${status}`);
       
       await this.getAccessToken();
       
@@ -1187,7 +1140,6 @@ export class GoogleAdsService {
       };
       
     } catch (error) {
-      // console.error('Google Ads 광고그룹 일괄 상태 변경 실패:', error.message);
       return {
         content: [
           {
@@ -1203,7 +1155,6 @@ export class GoogleAdsService {
 
   async getAdList(campaignId, adGroupId, statusFilter) {
     try {
-      // console.log('📋 Google Ads 광고 목록 조회 중...');
       
       await this.getAccessToken();
       
@@ -1252,7 +1203,6 @@ export class GoogleAdsService {
       };
       
     } catch (error) {
-      // console.error('Google Ads 광고 목록 조회 실패:', error.message);
       
       return {
         content: [
@@ -1267,7 +1217,6 @@ export class GoogleAdsService {
 
   async getAdPerformance(days, adIds, campaignId, adGroupId) {
     try {
-      // console.log('📊 Google Ads 광고 성과 조회 중...');
       
       await this.getAccessToken();
       
@@ -1327,7 +1276,6 @@ export class GoogleAdsService {
       };
       
     } catch (error) {
-      // console.error('Google Ads 광고 성과 조회 실패:', error.message);
       const periodText = getPeriodText(days);
       
       return {
@@ -1343,7 +1291,6 @@ export class GoogleAdsService {
 
   async toggleAdStatus(adId, status) {
     try {
-      // console.log(`🔄 Google Ads 광고 ${adId} 상태 변경: ${status}`);
       
       await this.getAccessToken();
       
@@ -1371,7 +1318,6 @@ export class GoogleAdsService {
       };
       
     } catch (error) {
-      // console.error('Google Ads 광고 상태 변경 실패:', error.message);
       return {
         content: [
           {
@@ -1385,7 +1331,6 @@ export class GoogleAdsService {
 
   async bulkToggleAds(adIds, status) {
     try {
-      // console.log(`🔄 Google Ads 광고 ${adIds.length}개 일괄 상태 변경: ${status}`);
       
       await this.getAccessToken();
       
@@ -1411,7 +1356,6 @@ export class GoogleAdsService {
       };
       
     } catch (error) {
-      // console.error('Google Ads 광고 일괄 상태 변경 실패:', error.message);
       return {
         content: [
           {
@@ -1581,11 +1525,6 @@ export class GoogleAdsService {
       const response = await axios(config);
       return response.data;
     } catch (error) {
-      // console.error('Google Ads Mutate API 요청 실패:', {
-      //   status: error.response?.status,
-      //   statusText: error.response?.statusText,
-      //   data: error.response?.data
-      // });
       
       let errorMessage = error.message;
       if (error.response?.data?.error) {

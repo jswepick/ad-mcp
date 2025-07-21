@@ -436,7 +436,7 @@ export class FacebookAdsService {
       const cpc = campaign.cpc ? parseFloat(campaign.cpc).toFixed(2) : '0.00';
       const actions = parseActions(campaign.actions);
 
-      result += `${index + 1}. **${campaign.campaign_name}**\n`;
+      result += `${index + 1}. **${campaign.campaign_name}** (ID: ${campaign.campaign_id})\n`;
       result += `   💰 지출: ${formatCurrency(spend)}\n`;
       result += `   👁️ 노출: ${formatNumber(impressions)}\n`;
       result += `   🖱️ 클릭: ${formatNumber(clicks)}\n`;

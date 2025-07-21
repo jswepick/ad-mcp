@@ -53,3 +53,9 @@ jspm_packages/
 
 # Windows
 Thumbs.db
+
+# 테스트파일
+*test*
+
+# 테스트 폴더
+test/

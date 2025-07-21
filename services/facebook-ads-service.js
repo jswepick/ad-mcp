@@ -345,29 +345,65 @@ export class FacebookAdsService {
   async getCampaignPerformance(days, campaignIds) {
     const { since, until } = getDateRange(days);
     
-    let url = `${BASE_URL}/${AD_ACCOUNT_ID}/insights`;
-    const params = {
+    // 먼저 접근 가능한 모든 광고 계정 조회
+    const accountsUrl = `${BASE_URL}/me/adaccounts`;
+    const accountsParams = {
       access_token: ACCESS_TOKEN,
-      level: 'campaign',
-      time_range: JSON.stringify({ since, until }),
-      fields: 'campaign_id,campaign_name,impressions,clicks,spend,ctr,cpc,cpp,cpm,conversions,conversion_rate_ranking,actions'
+      fields: 'id,name,account_status',
+      limit: 100
     };
+    
+    const accountsResponse = await axios.get(accountsUrl, { params: accountsParams });
+    const adAccounts = accountsResponse.data.data.filter(account => account.account_status === 1); // 활성 계정만
+    
+    // 모든 광고 계정에서 캠페인 데이터 수집
+    let allData = [];
+    
+    for (const account of adAccounts) {
+      const url = `${BASE_URL}/${account.id}/insights`;
+      const params = {
+        access_token: ACCESS_TOKEN,
+        level: 'campaign',
+        time_range: JSON.stringify({ since, until }),
+        fields: 'campaign_id,campaign_name,impressions,clicks,spend,ctr,cpc,cpp,cpm,conversions,conversion_rate_ranking,actions'
+      };
 
-    if (campaignIds && campaignIds.length > 0) {
-      params.filtering = JSON.stringify([{
-        field: 'campaign.id',
-        operator: 'IN',
-        value: campaignIds
-      }]);
+      if (campaignIds && campaignIds.length > 0) {
+        params.filtering = JSON.stringify([{
+          field: 'campaign.id',
+          operator: 'IN',
+          value: campaignIds
+        }]);
+      }
+      
+      try {
+        // 페이징으로 모든 데이터 가져오기
+        let after = null;
+        let accountData = [];
+        
+        do {
+          const currentParams = { ...params };
+          if (after) currentParams.after = after;
+          
+          const response = await axios.get(url, { params: currentParams });
+          accountData = accountData.concat(response.data.data || []);
+          
+          after = response.data.paging?.cursors?.after;
+        } while (after);
+        
+        allData = allData.concat(accountData);
+        
+      } catch (error) {
+        console.error(`광고 계정 ${account.id} 조회 실패:`, error.response?.data?.error?.message || error.message);
+        // 에러가 있어도 계속 진행
+      }
     }
-
-    const response = await axios.get(url, { params });
     
     return {
       content: [
         {
           type: 'text',
-          text: this.formatCampaignPerformance(response.data.data, days)
+          text: this.formatCampaignPerformance(allData, days)
         }
       ]
     };
@@ -1119,7 +1155,7 @@ export class FacebookAdsService {
 
   async getImageUrlFromHash(imageHash) {
     try {
-      const url = `https://graph.facebook.com/v22.0/act_774129430431823/adimages`;
+      const url = `${BASE_URL}/${AD_ACCOUNT_ID}/adimages`;
       const params = {
         access_token: ACCESS_TOKEN,
         fields: 'url,name,hash',
@@ -1223,7 +1259,7 @@ export class FacebookAdsService {
           });
           result += `\n💡 **Ad Images API 호출 예시**:\n`;
           const hashArray = imageHashes.map(h => `"${h.hash}"`).join(',');
-          result += `\`act_774129430431823/adimages?fields=url,name,hash&hashes=[${hashArray}]\`\n`;
+          result += `\`${AD_ACCOUNT_ID}/adimages?fields=url,name,hash&hashes=[${hashArray}]\`\n`;
         } else {
           result += `❌ **Image Hash를 찾을 수 없습니다**\n`;
         }

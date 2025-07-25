@@ -17,6 +17,47 @@ export class FacebookAdsService {
   getTools() {
     return [
       {
+        name: 'facebook_get_campaign_list_with_date_filter',
+        description: '특정 날짜 범위에서 활동한 캠페인 목록을 성과 데이터와 함께 조회합니다',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            start_date: {
+              type: 'string',
+              description: '시작일 (YYYY-MM-DD 형식)'
+            },
+            end_date: {
+              type: 'string', 
+              description: '종료일 (YYYY-MM-DD 형식)'
+            }
+          },
+          required: ['start_date', 'end_date']
+        }
+      },
+      {
+        name: 'facebook_get_ad_level_performance',
+        description: '특정 캠페인들의 광고별 상세 성과를 조회합니다',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            campaign_ids: {
+              type: 'array',
+              items: { type: 'string' },
+              description: '캠페인 ID 배열'
+            },
+            start_date: {
+              type: 'string',
+              description: '시작일 (YYYY-MM-DD 형식)'
+            },
+            end_date: {
+              type: 'string',
+              description: '종료일 (YYYY-MM-DD 형식)'
+            }
+          },
+          required: ['campaign_ids', 'start_date', 'end_date']
+        }
+      },
+      {
         name: 'facebook_get_campaign_performance',
         description: '지정된 기간의 캠페인 성과를 조회합니다',
         inputSchema: {
@@ -301,6 +342,10 @@ export class FacebookAdsService {
    */
   async handleToolCall(toolName, args) {
     switch (toolName) {
+      case 'facebook_get_campaign_list_with_date_filter':
+        return await this.getCampaignListWithDateFilter(args.start_date, args.end_date);
+      case 'facebook_get_ad_level_performance':
+        return await this.getAdLevelPerformance(args.campaign_ids, args.start_date, args.end_date);
       case 'facebook_get_campaign_performance':
         return await this.getCampaignPerformance(args.days || 7, args.campaign_ids);
       case 'facebook_toggle_campaign_status':
@@ -1304,5 +1349,192 @@ export class FacebookAdsService {
     }
 
     return hashes;
+  }
+
+  // === 키워드 매칭 함수 (단일/다중 키워드 지원) ===
+  
+  /**
+   * 키워드 매칭 함수 - 단일/다중 키워드 자동 판단
+   * @param {string} name - 캠페인명 또는 광고명
+   * @param {string} keywordString - 키워드 문자열 ("고병우" 또는 "고병우,다이즐")
+   * @returns {boolean} - 매칭 여부
+   */
+  matchesKeywords(name, keywordString) {
+    if (!keywordString || keywordString.trim() === '') {
+      return true; // 키워드가 없으면 모든 항목 매칭
+    }
+    
+    const lowerName = name.toLowerCase();
+    
+    if (!keywordString.includes(',')) {
+      // 단일 키워드 (기존 방식)
+      return lowerName.includes(keywordString.toLowerCase().trim());
+    } else {
+      // 다중 키워드 AND 조건
+      const keywords = keywordString.split(',')
+        .map(k => k.trim())
+        .filter(k => k.length > 0);
+      
+      return keywords.every(keyword => 
+        lowerName.includes(keyword.toLowerCase())
+      );
+    }
+  }
+
+  // === 통합 검색을 위한 새로운 메서드들 ===
+
+  /**
+   * 특정 날짜 범위에서 활동한 캠페인 목록을 성과 데이터와 함께 조회
+   */
+  async getCampaignListWithDateFilter(startDate, endDate) {
+    try {
+      // 1단계: 모든 접근 가능한 광고 계정 조회
+      const accountsUrl = `${BASE_URL}/me/adaccounts`;
+      const accountsParams = {
+        access_token: ACCESS_TOKEN,
+        fields: 'account_id,name,account_status,currency',
+        limit: 1000
+      };
+
+      const accountsResponse = await axios.get(accountsUrl, { params: accountsParams });
+      const accounts = (accountsResponse.data.data || [])
+        .filter(account => account.account_status === 1); // 활성 계정만
+
+      if (accounts.length === 0) {
+        console.warn('접근 가능한 활성 Facebook 광고 계정이 없습니다.');
+        return [];
+      }
+
+      console.log(`Facebook: ${accounts.length}개의 활성 광고 계정에서 캠페인 조회 중...`);
+
+      // 2단계: 각 계정에서 캠페인 조회
+      const allCampaigns = [];
+      
+      for (const account of accounts) {
+        try {
+          const url = `${BASE_URL}/act_${account.account_id}/insights`;
+          const params = {
+            access_token: ACCESS_TOKEN,
+            fields: 'campaign_id,campaign_name,spend',
+            time_range: JSON.stringify({
+              since: startDate,
+              until: endDate
+            }),
+            level: 'campaign',
+            limit: 1000
+          };
+
+          const response = await axios.get(url, { params });
+          
+          const campaigns = (response.data.data || [])
+            .filter(campaign => parseFloat(campaign.spend || '0') > 0)
+            .map(campaign => ({
+              campaign_id: campaign.campaign_id,
+              campaign_name: campaign.campaign_name,
+              name: campaign.campaign_name, // 호환성을 위한 별칭
+              spend: campaign.spend || '0',
+              account_id: account.account_id,
+              account_name: account.name,
+              account_currency: account.currency
+            }));
+            
+          allCampaigns.push(...campaigns);
+          
+        } catch (error) {
+          console.warn(`Facebook 계정 ${account.account_id} (${account.name}) 캠페인 조회 실패:`, error.message);
+          // 개별 계정 실패는 전체 실패로 처리하지 않음
+        }
+      }
+
+      console.log(`Facebook: 총 ${allCampaigns.length}개 캠페인 발견`);
+      
+      return allCampaigns.sort((a, b) => parseFloat(b.spend) - parseFloat(a.spend));
+
+    } catch (error) {
+      console.error('Facebook 캠페인 목록 조회 실패:', error.message);
+      throw new Error(`Facebook 캠페인 목록 조회 실패: ${error.message}`);
+    }
+  }
+
+  /**
+   * 특정 캠페인들의 광고별 상세 성과 조회
+   */
+  async getAdLevelPerformance(campaignIds, startDate, endDate) {
+    try {
+      // 1단계: 모든 접근 가능한 광고 계정 조회
+      const accountsUrl = `${BASE_URL}/me/adaccounts`;
+      const accountsParams = {
+        access_token: ACCESS_TOKEN,
+        fields: 'account_id,name,account_status',
+        limit: 1000
+      };
+
+      const accountsResponse = await axios.get(accountsUrl, { params: accountsParams });
+      const accounts = (accountsResponse.data.data || [])
+        .filter(account => account.account_status === 1); // 활성 계정만
+
+      if (accounts.length === 0) {
+        console.warn('접근 가능한 활성 Facebook 광고 계정이 없습니다.');
+        return [];
+      }
+
+      console.log(`Facebook: ${accounts.length}개의 활성 광고 계정에서 광고 조회 중...`);
+
+      // 2단계: 각 계정에서 해당 캠페인의 광고 조회
+      const allAds = [];
+      
+      for (const account of accounts) {
+        try {
+          const url = `${BASE_URL}/act_${account.account_id}/insights`;
+          const params = {
+            access_token: ACCESS_TOKEN,
+            fields: 'ad_id,ad_name,campaign_id,campaign_name,spend,impressions,clicks,ctr,cpc,cpm',
+            time_range: JSON.stringify({
+              since: startDate,
+              until: endDate
+            }),
+            level: 'ad',
+            filtering: JSON.stringify([{
+              field: 'campaign.id',
+              operator: 'IN',
+              value: campaignIds
+            }]),
+            limit: 1000
+          };
+
+          const response = await axios.get(url, { params });
+          
+          const ads = (response.data.data || []).map(ad => ({
+            ad_id: ad.ad_id,
+            ad_name: ad.ad_name,
+            name: ad.ad_name, // 호환성을 위한 별칭
+            campaign_id: ad.campaign_id,
+            campaign_name: ad.campaign_name,
+            spend: ad.spend || '0',
+            impressions: ad.impressions || '0',
+            clicks: ad.clicks || '0',
+            ctr: ad.ctr || '0',
+            cpc: ad.cpc || '0',
+            cpm: ad.cpm || '0',
+            account_id: account.account_id,
+            account_name: account.name
+          }));
+          
+          allAds.push(...ads);
+          
+        } catch (error) {
+          console.warn(`Facebook 계정 ${account.account_id} (${account.name}) 광고 조회 실패:`, error.message);
+          // 개별 계정 실패는 전체 실패로 처리하지 않음
+        }
+      }
+
+      console.log(`Facebook: 총 ${allAds.length}개 광고 발견`);
+      
+      return allAds.sort((a, b) => parseFloat(b.spend) - parseFloat(a.spend));
+
+    } catch (error) {
+      console.error('Facebook 광고별 성과 조회 실패:', error.message);
+      throw new Error(`Facebook 광고별 성과 조회 실패: ${error.message}`);
+    }
   }
 }

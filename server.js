@@ -17,6 +17,7 @@ import 'dotenv/config';
 import { FacebookAdsService } from './services/facebook-ads-service.js';
 import { GoogleAdsService } from './services/google-ads-service.js';
 import { TikTokAdsService } from './services/tiktok-ads-service.js';
+import { UnifiedSearchService } from './services/unified-search-service.js';
 
 // 환경 변수 확인
 const PORT = process.env.PORT || 3000;
@@ -61,6 +62,9 @@ class MultiPlatformAdsServer {
       this.services.tiktok = new TikTokAdsService();
     }
     
+    // 통합 검색 서비스 초기화
+    this.unifiedSearchService = new UnifiedSearchService(this.services);
+    
     console.error('서비스 초기화 완료');
     
     this.setupToolHandlers();
@@ -73,10 +77,16 @@ class MultiPlatformAdsServer {
   getAllTools() {
     const allTools = [];
     
+    // 기존 플랫폼별 도구들
     Object.entries(this.services).forEach(([platform, service]) => {
       const platformTools = service.getTools();
       allTools.push(...platformTools);
     });
+    
+    // 통합 검색 도구들 추가
+    const unifiedTools = this.unifiedSearchService.getTools();
+    allTools.push(...unifiedTools);
+    
     return allTools;
   }
 
@@ -84,6 +94,11 @@ class MultiPlatformAdsServer {
    * 도구명으로 해당 서비스 찾기
    */
   getServiceByToolName(toolName) {
+    // 통합 검색 도구들 먼저 확인
+    if (toolName.startsWith('structured_campaign_search') || toolName === 'search_help') {
+      return this.unifiedSearchService;
+    }
+    
     if (toolName.startsWith('facebook_')) {
       return this.services.facebook;
     } else if (toolName.startsWith('google_')) {

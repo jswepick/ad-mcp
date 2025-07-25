@@ -22,10 +22,104 @@ export class GoogleAdsService {
   }
 
   /**
+   * 키워드 매칭 함수 - 단일/다중 키워드 자동 판단
+   * @param {string} name - 캠페인명 또는 광고명
+   * @param {string} keywordString - 키워드 문자열 ("고병우" 또는 "고병우,다이즐")
+   * @returns {boolean} - 매칭 여부
+   */
+  matchesKeywords(name, keywordString) {
+    if (!keywordString || keywordString.trim() === '') {
+      return true; // 키워드가 없으면 모든 항목 매칭
+    }
+    
+    const lowerName = name.toLowerCase();
+    
+    if (!keywordString.includes(',')) {
+      // 단일 키워드 (기존 방식)
+      return lowerName.includes(keywordString.toLowerCase().trim());
+    } else {
+      // 다중 키워드 AND 조건
+      const keywords = keywordString.split(',')
+        .map(k => k.trim())
+        .filter(k => k.length > 0);
+      
+      return keywords.every(keyword => 
+        lowerName.includes(keyword.toLowerCase())
+      );
+    }
+  }
+
+  /**
+   * Resource Name 생성 함수
+   * @param {string} customerId - Customer ID  
+   * @param {Array} campaignIds - 캠페인 ID 배열
+   * @returns {Array} - Resource Name 배열
+   */
+  buildResourceNames(customerId, campaignIds) {
+    const cleanCustomerId = customerId.replace(/-/g, '');
+    return campaignIds.map(id => `customers/${cleanCustomerId}/campaigns/${id}`);
+  }
+
+  /**
+   * 클라이언트 측 ID 필터링 함수
+   * @param {Array} items - 필터링할 아이템 배열
+   * @param {Array} targetIds - 대상 ID 배열  
+   * @param {string} idField - ID 필드명 (기본값: 'campaign_id')
+   * @returns {Array} - 필터링된 결과
+   */
+  filterByIds(items, targetIds, idField = 'campaign_id') {
+    return items.filter(item => {
+      const itemId = parseInt(item[idField] || item.id);
+      return targetIds.includes(itemId);
+    });
+  }
+
+  /**
    * MCP 도구 목록 반환
    */
   getTools() {
     return [
+      {
+        name: 'google_get_campaign_list_with_date_filter',
+        description: '특정 날짜 범위에서 활동한 캠페인 목록을 성과 데이터와 함께 조회합니다',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            start_date: {
+              type: 'string',
+              description: '시작일 (YYYY-MM-DD 형식)'
+            },
+            end_date: {
+              type: 'string',
+              description: '종료일 (YYYY-MM-DD 형식)'
+            }
+          },
+          required: ['start_date', 'end_date']
+        }
+      },
+      {
+        name: 'google_get_ad_level_performance',
+        description: '특정 캠페인들의 광고별 상세 성과를 조회합니다',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            campaign_ids: {
+              type: 'array',
+              items: { type: 'string' },
+              description: '캠페인 ID 배열'
+            },
+            start_date: {
+              type: 'string',
+              description: '시작일 (YYYY-MM-DD 형식)'
+            },
+            end_date: {
+              type: 'string',
+              description: '종료일 (YYYY-MM-DD 형식)'
+            }
+          },
+          required: ['campaign_ids', 'start_date', 'end_date']
+        }
+      },
       {
         name: 'google_get_campaign_performance',
         description: 'Google Ads 캠페인 성과를 조회합니다',
@@ -294,6 +388,10 @@ export class GoogleAdsService {
    */
   async handleToolCall(toolName, args) {
     switch (toolName) {
+      case 'google_get_campaign_list_with_date_filter':
+        return await this.getCampaignListWithDateFilter(args.start_date, args.end_date);
+      case 'google_get_ad_level_performance':
+        return await this.getAdLevelPerformance(args.campaign_ids, args.start_date, args.end_date);
       case 'google_get_campaign_performance':
         return await this.getCampaignPerformance(args.days || 7, args.campaign_ids);
       case 'google_get_campaign_list':
@@ -1535,6 +1633,221 @@ export class GoogleAdsService {
       }
       
       throw new Error(errorMessage);
+    }
+  }
+
+  // === 통합 검색을 위한 새로운 메서드들 ===
+
+  /**
+   * 특정 날짜 범위에서 활동한 캠페인 목록을 성과 데이터와 함께 조회
+   * 테스트에서 검증된 단계적 접근법 사용
+   */
+  async getCampaignListWithDateFilter(startDate, endDate) {
+    try {
+      await this.getAccessToken();
+      
+      // 날짜 필터 생성
+      const dateFilter = (startDate === endDate) 
+        ? `segments.date = '${startDate}'`
+        : `segments.date BETWEEN '${startDate}' AND '${endDate}'`;
+      
+      // 1단계: 전체 캠페인 조회 + 날짜 + 메트릭 (클라이언트 필터링 방식)
+      console.log(`[Google Ads] 캠페인 조회 시작: ${startDate} ~ ${endDate}`);
+      
+      const query = `
+        SELECT 
+          campaign.id,
+          campaign.name,
+          campaign.status,
+          metrics.cost_micros,
+          segments.date
+        FROM campaign
+        WHERE campaign.status IN ('ENABLED', 'PAUSED')
+        AND ${dateFilter}
+        AND metrics.cost_micros > 0
+        ORDER BY metrics.cost_micros DESC
+      `;
+
+      const response = await this.makeGoogleAdsRequest(query);
+      
+      if (!response.results || response.results.length === 0) {
+        console.log('[Google Ads] 해당 날짜에 성과 있는 캠페인이 없습니다.');
+        return [];
+      }
+
+      // Google Ads API 응답을 표준 형식으로 변환
+      const campaigns = response.results.map(row => ({
+        campaign_id: row.campaign.id.toString(),
+        campaign_name: row.campaign.name,
+        name: row.campaign.name, // 호환성을 위한 별칭
+        status: row.campaign.status,
+        spend: (row.metrics.costMicros / 1000000).toFixed(2), // 마이크로 단위를 달러로 변환
+        date: row.segments.date
+      }));
+
+      console.log(`[Google Ads] 캠페인 조회 성공: ${campaigns.length}개 캠페인`);
+      const totalSpend = campaigns.reduce((sum, c) => sum + parseFloat(c.spend), 0);
+      console.log(`[Google Ads] 총 지출: $${totalSpend.toFixed(2)}`);
+      
+      return campaigns;
+
+    } catch (error) {
+      console.error(`[Google Ads] 캠페인 목록 조회 실패: ${error.message}`);
+      
+      // 날짜 없이 기본 조회 시도 (fallback)
+      try {
+        console.log('[Google Ads] 날짜 없이 기본 캠페인 조회 시도...');
+        
+        const fallbackQuery = `
+          SELECT 
+            campaign.id,
+            campaign.name,
+            campaign.status,
+            metrics.cost_micros
+          FROM campaign
+          WHERE campaign.status IN ('ENABLED', 'PAUSED')
+          AND metrics.cost_micros > 0
+          ORDER BY metrics.cost_micros DESC
+          LIMIT 100
+        `;
+
+        const fallbackResponse = await this.makeGoogleAdsRequest(fallbackQuery);
+        
+        if (fallbackResponse.results && fallbackResponse.results.length > 0) {
+          console.log(`[Google Ads] Fallback 성공: ${fallbackResponse.results.length}개 캠페인`);
+          
+          return fallbackResponse.results.map(row => ({
+            campaign_id: row.campaign.id.toString(),
+            campaign_name: row.campaign.name,
+            name: row.campaign.name,
+            status: row.campaign.status,
+            spend: (row.metrics.costMicros / 1000000).toFixed(2),
+            date: 'N/A'
+          }));
+        }
+      } catch (fallbackError) {
+        console.error(`[Google Ads] Fallback도 실패: ${fallbackError.message}`);
+      }
+      
+      throw new Error(`Google Ads 캠페인 목록 조회 실패: ${error.message}`);
+    }
+  }
+
+  /**
+   * 특정 캠페인들의 광고별 상세 성과 조회
+   */
+  async getAdLevelPerformance(campaignIds, startDate, endDate) {
+    try {
+      await this.getAccessToken();
+      
+      console.log(`🔍 광고 성과 조회: ${campaignIds.length}개 캠페인, ${startDate} ~ ${endDate}`);
+      
+      // 방법 1: Resource Name 방식 시도
+      try {
+        const customerId = CUSTOMER_ID.replace(/-/g, '');
+        const resourceNames = this.buildResourceNames(CUSTOMER_ID, campaignIds);
+        const resourceFilter = resourceNames.map(name => `'${name}'`).join(', ');
+        
+        console.log('📊 Resource Name 방식으로 광고 조회 시도...');
+        
+        const resourceQuery = `
+          SELECT 
+            ad_group_ad.ad.id,
+            ad_group_ad.ad.name,
+            campaign.id,
+            campaign.name,
+            metrics.impressions,
+            metrics.clicks,
+            metrics.cost_micros,
+            metrics.ctr,
+            metrics.average_cpc
+          FROM ad_group_ad
+          WHERE campaign.resource_name IN (${resourceFilter})
+          AND segments.date BETWEEN '${startDate}' AND '${endDate}'
+          AND metrics.impressions > 0
+          ORDER BY metrics.cost_micros DESC
+        `;
+
+        const resourceResponse = await this.makeGoogleAdsRequest(resourceQuery);
+        
+        if (resourceResponse.results && resourceResponse.results.length > 0) {
+          console.log(`✅ Resource Name 방식 성공: ${resourceResponse.results.length}개 광고`);
+          
+          return resourceResponse.results.map(row => ({
+            ad_id: row.adGroupAd.ad.id.toString(),
+            ad_name: row.adGroupAd.ad.name || `Ad ${row.adGroupAd.ad.id}`,
+            name: row.adGroupAd.ad.name || `Ad ${row.adGroupAd.ad.id}`,
+            campaign_id: row.campaign.id.toString(),
+            campaign_name: row.campaign.name,
+            spend: (row.metrics.costMicros / 1000000).toFixed(2),
+            impressions: row.metrics.impressions?.toString() || '0',
+            clicks: row.metrics.clicks?.toString() || '0',
+            ctr: (row.metrics.ctr * 100).toFixed(2),
+            cpc: (row.metrics.averageCpc / 1000000).toFixed(2),
+            cpm: '0'
+          }));
+        } else {
+          console.log('❌ Resource Name 방식: 결과 없음, 클라이언트 필터링으로 폴백');
+        }
+      } catch (resourceError) {
+        console.log(`❌ Resource Name 방식 실패: ${resourceError.message}, 클라이언트 필터링으로 폴백`);
+      }
+      
+      // 방법 2: 클라이언트 측 필터링 방식 (폴백)
+      console.log('📊 클라이언트 필터링 방식으로 광고 조회...');
+      
+      const fallbackQuery = `
+        SELECT 
+          ad_group_ad.ad.id,
+          ad_group_ad.ad.name,
+          campaign.id,
+          campaign.name,
+          metrics.impressions,
+          metrics.clicks,
+          metrics.cost_micros,
+          metrics.ctr,
+          metrics.average_cpc
+        FROM ad_group_ad
+        WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
+        AND metrics.impressions > 0
+        ORDER BY metrics.cost_micros DESC
+      `;
+
+      const fallbackResponse = await this.makeGoogleAdsRequest(fallbackQuery);
+      
+      if (!fallbackResponse.results || fallbackResponse.results.length === 0) {
+        console.log('❌ 클라이언트 필터링: 전체 광고 조회 실패');
+        return [];
+      }
+      
+      console.log(`📊 전체 ${fallbackResponse.results.length}개 광고 조회됨, 클라이언트 필터링 적용 중...`);
+      
+      // 모든 광고를 표준 형식으로 변환
+      const allAds = fallbackResponse.results.map(row => ({
+        ad_id: row.adGroupAd.ad.id.toString(),
+        ad_name: row.adGroupAd.ad.name || `Ad ${row.adGroupAd.ad.id}`,
+        name: row.adGroupAd.ad.name || `Ad ${row.adGroupAd.ad.id}`,
+        campaign_id: row.campaign.id.toString(),
+        campaign_name: row.campaign.name,
+        spend: (row.metrics.costMicros / 1000000).toFixed(2),
+        impressions: row.metrics.impressions?.toString() || '0',
+        clicks: row.metrics.clicks?.toString() || '0',
+        ctr: (row.metrics.ctr * 100).toFixed(2),
+        cpc: (row.metrics.averageCpc / 1000000).toFixed(2),
+        cpm: '0'
+      }));
+      
+      // 클라이언트 측에서 캠페인 ID로 필터링
+      const targetCampaignIds = campaignIds.map(id => parseInt(id));
+      const filteredAds = this.filterByIds(allAds, targetCampaignIds, 'campaign_id');
+      
+      console.log(`✅ 클라이언트 필터링 완료: ${filteredAds.length}개 광고`);
+      
+      return filteredAds;
+      
+    } catch (error) {
+      console.error('Google Ads 광고별 성과 조회 실패:', error.message);
+      throw new Error(`Google Ads 광고별 성과 조회 실패: ${error.message}`);
     }
   }
 }

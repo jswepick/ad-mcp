@@ -9,6 +9,21 @@ const APP_ID = process.env.TIKTOK_APP_ID;
 const SECRET = process.env.TIKTOK_SECRET;
 const BASE_URL = 'https://business-api.tiktok.com/open_api/v1.3';
 
+// API 버전별 엔드포인트 매핑
+const API_ENDPOINTS = {
+  ADVERTISER_INFO: '/advertiser/info/',
+  CAMPAIGN_GET: '/campaign/get/',
+  CAMPAIGN_UPDATE_STATUS: '/campaign/status/update/',
+  ADGROUP_GET: '/adgroup/get/',
+  AD_GET: '/ad/get/',
+  REPORT_INTEGRATED: '/report/integrated/get/',
+  OAUTH_ACCESS_TOKEN: '/oauth2/access_token/',
+  ADVERTISER_CREATE: '/advertiser/create/',
+  CAMPAIGN_CREATE: '/campaign/create/',
+  ADGROUP_CREATE: '/adgroup/create/',
+  AD_CREATE: '/ad/create/'
+};
+
 export class TikTokAdsService {
   constructor() {
     this.platform = 'tiktok';
@@ -20,6 +35,55 @@ export class TikTokAdsService {
    */
   getTools() {
     return [
+      {
+        name: 'tiktok_get_campaign_list_with_date_filter',
+        description: '특정 날짜 범위에서 활동한 캠페인 목록을 성과 데이터와 함께 조회합니다',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            start_date: {
+              type: 'string',
+              description: '시작일 (YYYY-MM-DD 형식)'
+            },
+            end_date: {
+              type: 'string',
+              description: '종료일 (YYYY-MM-DD 형식)'
+            }
+          },
+          required: ['start_date', 'end_date']
+        }
+      },
+      {
+        name: 'tiktok_get_ad_level_performance',
+        description: '특정 캠페인들의 광고별 상세 성과를 조회합니다',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            campaign_ids: {
+              type: 'array',
+              items: { type: 'string' },
+              description: '캠페인 ID 배열'
+            },
+            start_date: {
+              type: 'string',
+              description: '시작일 (YYYY-MM-DD 형식)'
+            },
+            end_date: {
+              type: 'string',
+              description: '종료일 (YYYY-MM-DD 형식)'
+            }
+          },
+          required: ['campaign_ids', 'start_date', 'end_date']
+        }
+      },
+      {
+        name: 'tiktok_test_connection',
+        description: 'TikTok Ads API 연결 상태를 테스트합니다',
+        inputSchema: {
+          type: 'object',
+          properties: {}
+        }
+      },
       {
         name: 'tiktok_get_campaign_performance',
         description: 'TikTok Ads 캠페인 성과를 조회합니다',
@@ -116,22 +180,58 @@ export class TikTokAdsService {
    * 도구 호출 처리
    */
   async handleToolCall(toolName, args) {
-    switch (toolName) {
-      case 'tiktok_get_campaign_performance':
-        return await this.getCampaignPerformance(args.days || 7, args.campaign_ids);
-      case 'tiktok_get_campaign_list':
-        return await this.getCampaignList(args.status_filter || 'ALL');
-      case 'tiktok_toggle_campaign_status':
-        return await this.toggleCampaignStatus(args.campaign_id, args.status);
-      case 'tiktok_get_ad_group_performance':
-        return await this.getAdGroupPerformance(args.days || 7, args.campaign_id);
-      case 'tiktok_get_creative_performance':
-        return await this.getCreativePerformance(args.days || 7, args.ad_group_id);
-      case 'tiktok_test_connection':
-        return await this.testConnection();
-      default:
-        throw new Error(`Unknown TikTok tool: ${toolName}`);
+    try {
+      // 필수 환경변수 검증
+      if (!this.validateEnvironmentVariables()) {
+        return this.createErrorResponse('TikTok Ads API 환경변수가 올바르게 설정되지 않았습니다');
+      }
+
+      switch (toolName) {
+        case 'tiktok_get_campaign_list_with_date_filter':
+          return await this.getCampaignListWithDateFilter(args.start_date, args.end_date);
+        case 'tiktok_get_ad_level_performance':
+          return await this.getAdLevelPerformance(args.campaign_ids, args.start_date, args.end_date);
+        case 'tiktok_test_connection':
+          return await this.testConnection();
+        case 'tiktok_get_campaign_performance':
+          return await this.getCampaignPerformance(args.days || 7, args.campaign_ids);
+        case 'tiktok_get_campaign_list':
+          return await this.getCampaignList(args.status_filter || 'ALL');
+        case 'tiktok_toggle_campaign_status':
+          return await this.toggleCampaignStatus(args.campaign_id, args.status);
+        case 'tiktok_get_ad_group_performance':
+          return await this.getAdGroupPerformance(args.days || 7, args.campaign_id);
+        case 'tiktok_get_creative_performance':
+          return await this.getCreativePerformance(args.days || 7, args.ad_group_id);
+        default:
+          throw new Error(`Unknown TikTok tool: ${toolName}`);
+      }
+    } catch (error) {
+      console.error(`TikTok tool error [${toolName}]:`, error.message);
+      return this.createErrorResponse(`도구 실행 실패: ${error.message}`);
     }
+  }
+
+  /**
+   * 환경변수 검증
+   */
+  validateEnvironmentVariables() {
+    const required = [ACCESS_TOKEN, ADVERTISER_ID];
+    return required.every(val => val && val.trim() !== '');
+  }
+
+  /**
+   * 에러 응답 생성
+   */
+  createErrorResponse(message) {
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `❌ **TikTok Ads API 오류**\n\n${message}\n\n**환경변수 확인:**\n- TIKTOK_ACCESS_TOKEN: ${ACCESS_TOKEN ? '✅ 설정됨' : '❌ 필요'}\n- TIKTOK_ADVERTISER_ID: ${ADVERTISER_ID ? '✅ 설정됨' : '❌ 필요'}\n- TIKTOK_APP_ID: ${APP_ID ? '✅ 설정됨' : '선택사항'}\n- TIKTOK_SECRET: ${SECRET ? '✅ 설정됨' : '선택사항'}`
+        }
+      ]
+    };
   }
 
   // === 캠페인 관련 메서드들 ===
@@ -143,29 +243,40 @@ export class TikTokAdsService {
       
       const params = {
         advertiser_id: ADVERTISER_ID,
+        service_type: "AUCTION",
+        report_type: "BASIC",
+        data_level: "AUCTION_CAMPAIGN",
+        dimensions: JSON.stringify(["campaign_id", "stat_time_day"]),
+        metrics: JSON.stringify([
+          "campaign_name",
+          "spend",
+          "impressions", 
+          "clicks",
+          "ctr",
+          "cpc",
+          "cpm",
+          "conversions",
+          "conversion_rate",
+          "cost_per_conversion"
+        ]),
         start_date,
         end_date,
-        group_by: 'STAT_GROUP_BY_CAMPAIGN_ID',
-        metrics: [
-          'campaign_name',
-          'spend',
-          'impressions', 
-          'clicks',
-          'ctr',
-          'cpc',
-          'cpm',
-          'conversions',
-          'conversion_rate',
-          'cost_per_conversion'
-        ].join(',')
+        page: 1,
+        page_size: 1000
       };
 
       // 특정 캠페인 ID 필터 추가
       if (campaignIds && campaignIds.length > 0) {
-        params.campaign_ids = JSON.stringify(campaignIds);
+        params.filtering = JSON.stringify([
+          {
+            "field_name": "campaign_ids",
+            "filter_type": "IN",
+            "filter_value": JSON.stringify(campaignIds)
+          }
+        ]);
       }
 
-      const response = await this.makeTikTokRequest('/report/integrated/get/', params);
+      const response = await this.makeTikTokRequest(API_ENDPOINTS.REPORT_INTEGRATED, params);
       
       return {
         content: [
@@ -212,7 +323,7 @@ export class TikTokAdsService {
         params.primary_status = statusFilter;
       }
 
-      const response = await this.makeTikTokRequest('/campaign/get/', params);
+      const response = await this.makeTikTokRequest(API_ENDPOINTS.CAMPAIGN_GET, params);
       
 
       return {
@@ -247,7 +358,7 @@ export class TikTokAdsService {
         operation_status: status
       };
 
-      const response = await this.makeTikTokRequest('/campaign/status/update/', params, 'POST');
+      const response = await this.makeTikTokRequest(API_ENDPOINTS.CAMPAIGN_UPDATE_STATUS, params, 'POST');
       
       return {
         content: [
@@ -278,28 +389,39 @@ export class TikTokAdsService {
       
       const params = {
         advertiser_id: ADVERTISER_ID,
+        service_type: "AUCTION",
+        report_type: "BASIC",
+        data_level: "AUCTION_ADGROUP",
+        dimensions: JSON.stringify(["adgroup_id", "stat_time_day"]),
+        metrics: JSON.stringify([
+          "adgroup_name",
+          "spend",
+          "impressions",
+          "clicks", 
+          "ctr",
+          "cpc",
+          "cpm",
+          "conversions",
+          "conversion_rate"
+        ]),
         start_date,
         end_date,
-        group_by: 'STAT_GROUP_BY_ADGROUP_ID',
-        metrics: [
-          'adgroup_name',
-          'spend',
-          'impressions',
-          'clicks', 
-          'ctr',
-          'cpc',
-          'cpm',
-          'conversions',
-          'conversion_rate'
-        ].join(',')
+        page: 1,
+        page_size: 1000
       };
 
       // 특정 캠페인 필터 추가
       if (campaignId) {
-        params.campaign_ids = JSON.stringify([campaignId]);
+        params.filtering = JSON.stringify([
+          {
+            "field_name": "campaign_ids",
+            "filter_type": "IN",
+            "filter_value": JSON.stringify([campaignId])
+          }
+        ]);
       }
 
-      const response = await this.makeTikTokRequest('/report/integrated/get/', params);
+      const response = await this.makeTikTokRequest(API_ENDPOINTS.REPORT_INTEGRATED, params);
       
       return {
         content: [
@@ -331,31 +453,42 @@ export class TikTokAdsService {
       
       const params = {
         advertiser_id: ADVERTISER_ID,
+        service_type: "AUCTION",
+        report_type: "BASIC",
+        data_level: "AUCTION_AD",
+        dimensions: JSON.stringify(["ad_id", "stat_time_day"]),
+        metrics: JSON.stringify([
+          "ad_name",
+          "spend",
+          "impressions",
+          "clicks",
+          "ctr",
+          "cpc",
+          "cpm",
+          "conversions",
+          "conversion_rate",
+          "video_play_actions",
+          "video_watched_2s",
+          "video_watched_6s"
+        ]),
         start_date,
         end_date,
-        group_by: 'STAT_GROUP_BY_AD_ID',
-        metrics: [
-          'ad_name',
-          'spend',
-          'impressions',
-          'clicks',
-          'ctr',
-          'cpc',
-          'cpm',
-          'conversions',
-          'conversion_rate',
-          'video_play_actions',
-          'video_watched_2s',
-          'video_watched_6s'
-        ].join(',')
+        page: 1,
+        page_size: 1000
       };
 
       // 특정 광고그룹 필터 추가
       if (adGroupId) {
-        params.adgroup_ids = JSON.stringify([adGroupId]);
+        params.filtering = JSON.stringify([
+          {
+            "field_name": "adgroup_ids",
+            "filter_type": "IN",
+            "filter_value": JSON.stringify([adGroupId])
+          }
+        ]);
       }
 
-      const response = await this.makeTikTokRequest('/report/integrated/get/', params);
+      const response = await this.makeTikTokRequest(API_ENDPOINTS.REPORT_INTEGRATED, params);
       
       return {
         content: [
@@ -390,7 +523,7 @@ export class TikTokAdsService {
         fields: ['advertiser_id', 'advertiser_name', 'status', 'currency', 'timezone']
       };
 
-      const response = await this.makeTikTokRequest('/advertiser/info/', params);
+      const response = await this.makeTikTokRequest(API_ENDPOINTS.ADVERTISER_INFO, params);
       
       if (!response.data?.list?.length) {
         throw new Error('Advertiser 정보를 찾을 수 없습니다');
@@ -455,14 +588,18 @@ export class TikTokAdsService {
     const url = `${BASE_URL}${endpoint}`;
     
     try {
+      console.log(`TikTok API Request: ${method} ${url}`);
+      console.log('Params:', JSON.stringify(params, null, 2));
 
       const config = {
         method,
         url,
         headers: {
           'Access-Token': this.accessToken,
-          'Content-Type': 'application/json'
-        }
+          'Content-Type': 'application/json',
+          'User-Agent': 'TikTok-MCP-Server/1.0'
+        },
+        timeout: 30000 // 30초 타임아웃
       };
 
       if (method === 'GET') {
@@ -472,25 +609,43 @@ export class TikTokAdsService {
       }
 
       const response = await axios(config);
-
+      console.log(`TikTok API Response: ${response.status}`);
 
       // TikTok API 응답 구조 확인
       if (response.data?.code !== 0) {
-        throw new Error(response.data?.message || 'TikTok API 오류');
+        const errorMsg = response.data?.message || 'TikTok API 오류';
+        const errorCode = response.data?.code || 'UNKNOWN';
+        throw new Error(`[${errorCode}] ${errorMsg}`);
       }
 
       return response.data;
     } catch (error) {
+      console.error('TikTok API Error:', error.message);
       
       // 에러 메시지 생성
       let errorMessage = error.message;
       
       if (error.response?.data) {
         const errorData = error.response.data;
-        if (errorData.message) {
+        
+        // TikTok API 에러 응답 구조에 맞춤
+        if (errorData.code && errorData.message) {
+          errorMessage = `[${errorData.code}] ${errorData.message}`;
+        } else if (errorData.message) {
           errorMessage = errorData.message;
         } else if (errorData.error?.message) {
           errorMessage = errorData.error.message;
+        }
+        
+        // 일반적인 TikTok API 에러 코드 해석
+        if (errorData.code === 40001) {
+          errorMessage = '인증 토큰이 유효하지 않거나 만료되었습니다';
+        } else if (errorData.code === 40002) {
+          errorMessage = 'Advertiser에 대한 접근 권한이 없습니다';
+        } else if (errorData.code === 40003) {
+          errorMessage = 'Advertiser ID가 존재하지 않거나 올바르지 않습니다';
+        } else if (errorData.code === 40004) {
+          errorMessage = '요청 파라미터가 잘못되었습니다';
         }
       }
       
@@ -500,14 +655,26 @@ export class TikTokAdsService {
           errorMessage = `잘못된 요청: ${errorMessage}`;
           break;
         case 401:
-          errorMessage = `인증 실패: Access Token이 유효하지 않습니다.`;
+          errorMessage = `인증 실패: ${errorMessage}`;
           break;
         case 403:
-          errorMessage = `권한 없음: Advertiser ID 접근 권한이 없습니다.`;
+          errorMessage = `권한 없음: ${errorMessage}`;
           break;
         case 404:
           errorMessage = `리소스를 찾을 수 없습니다: ${errorMessage}`;
           break;
+        case 429:
+          errorMessage = `API 요청 한도 초과: ${errorMessage}`;
+          break;
+        case 500:
+          errorMessage = `서버 내부 오류: ${errorMessage}`;
+          break;
+        default:
+          if (error.code === 'ECONNABORTED') {
+            errorMessage = 'API 요청 시간 초과';
+          } else if (error.code === 'ENOTFOUND') {
+            errorMessage = 'TikTok API 서버에 연결할 수 없습니다';
+          }
       }
       
       throw new Error(errorMessage);
@@ -556,8 +723,31 @@ export class TikTokAdsService {
     let totalClicks = 0;
     let totalConversions = 0;
 
+    // TikTok API v1.3 응답 구조에 맞춰 데이터 집계
+    const campaignMap = new Map();
+    
     campaigns.forEach(row => {
-      const metrics = row.metrics;
+      const dimensions = row.dimensions || {};
+      const metrics = row.metrics || {};
+      const campaignId = dimensions.campaign_id;
+      
+      if (!campaignMap.has(campaignId)) {
+        campaignMap.set(campaignId, {
+          campaign_name: metrics.campaign_name || 'Unknown Campaign',
+          spend: 0,
+          impressions: 0,
+          clicks: 0,
+          conversions: 0
+        });
+      }
+      
+      const campaign = campaignMap.get(campaignId);
+      campaign.spend += parseFloat(metrics.spend || 0);
+      campaign.impressions += parseInt(metrics.impressions || 0);
+      campaign.clicks += parseInt(metrics.clicks || 0);
+      campaign.conversions += parseFloat(metrics.conversions || 0);
+      
+      // 전체 집계
       totalSpend += parseFloat(metrics.spend || 0);
       totalImpressions += parseInt(metrics.impressions || 0);
       totalClicks += parseInt(metrics.clicks || 0);
@@ -581,19 +771,19 @@ export class TikTokAdsService {
     result += `🔄 전환율: ${overallConversionRate}%\n\n`;
 
     result += `📋 **캠페인별 상세 성과**\n\n`;
-    campaigns.forEach((row, index) => {
-      const dimensions = row.dimensions;
-      const metrics = row.metrics;
-      
-      const spend = parseFloat(metrics.spend || 0);
-      const impressions = parseInt(metrics.impressions || 0);
-      const clicks = parseInt(metrics.clicks || 0);
-      const conversions = parseFloat(metrics.conversions || 0);
-      const ctr = parseFloat(metrics.ctr || 0).toFixed(2);
-      const cpc = parseFloat(metrics.cpc || 0).toFixed(2);
-      const cpm = parseFloat(metrics.cpm || 0).toFixed(2);
+    
+    // 집계된 캠페인 데이터 출력
+    let index = 1;
+    campaignMap.forEach((campaign, campaignId) => {
+      const spend = campaign.spend;
+      const impressions = campaign.impressions;
+      const clicks = campaign.clicks;
+      const conversions = campaign.conversions;
+      const ctr = impressions > 0 ? (clicks / impressions * 100).toFixed(2) : 0;
+      const cpc = clicks > 0 ? (spend / clicks).toFixed(2) : 0;
+      const cpm = impressions > 0 ? (spend / impressions * 1000).toFixed(2) : 0;
 
-      result += `${index + 1}. **${metrics.campaign_name || dimensions.campaign_name}**\n`;
+      result += `${index}. **${campaign.campaign_name}**\n`;
       result += `   💰 지출: ${formatCurrency(spend)}\n`;
       result += `   👁️ 노출: ${formatNumber(impressions)}\n`;
       result += `   🖱️ 클릭: ${formatNumber(clicks)}\n`;
@@ -601,7 +791,9 @@ export class TikTokAdsService {
       result += `   📈 CTR: ${ctr}%\n`;
       result += `   💵 CPC: ${formatCurrency(cpc)}\n`;
       result += `   📊 CPM: ${formatCurrency(cpm)}\n`;
+      result += `   🆔 ID: ${campaignId}\n`;
       result += `\n`;
+      index++;
     });
 
     return result;
@@ -619,24 +811,55 @@ export class TikTokAdsService {
 
     let result = `🎯 **${periodText} TikTok Ads 광고그룹 성과**\n\n`;
     
-    adGroups.slice(0, 20).forEach((row, index) => {
-      const metrics = row.metrics;
+    // TikTok API v1.3 응답 구조에 맞춰 광고그룹 데이터 집계
+    const adGroupMap = new Map();
+    
+    adGroups.forEach(row => {
+      const dimensions = row.dimensions || {};
+      const metrics = row.metrics || {};
+      const adGroupId = dimensions.adgroup_id;
       
-      const spend = parseFloat(metrics.spend || 0);
-      const impressions = parseInt(metrics.impressions || 0);
-      const clicks = parseInt(metrics.clicks || 0);
-      const conversions = parseFloat(metrics.conversions || 0);
-      const ctr = parseFloat(metrics.ctr || 0).toFixed(2);
-      const cpc = parseFloat(metrics.cpc || 0).toFixed(2);
+      if (!adGroupMap.has(adGroupId)) {
+        adGroupMap.set(adGroupId, {
+          adgroup_name: metrics.adgroup_name || 'Unknown AdGroup',
+          spend: 0,
+          impressions: 0,
+          clicks: 0,
+          conversions: 0
+        });
+      }
+      
+      const adGroup = adGroupMap.get(adGroupId);
+      adGroup.spend += parseFloat(metrics.spend || 0);
+      adGroup.impressions += parseInt(metrics.impressions || 0);
+      adGroup.clicks += parseInt(metrics.clicks || 0);
+      adGroup.conversions += parseFloat(metrics.conversions || 0);
+    });
 
-      result += `${index + 1}. **${metrics.adgroup_name}**\n`;
+    // 상위 20개만 표시
+    let index = 1;
+    let count = 0;
+    adGroupMap.forEach((adGroup, adGroupId) => {
+      if (count >= 20) return;
+      
+      const spend = adGroup.spend;
+      const impressions = adGroup.impressions;
+      const clicks = adGroup.clicks;
+      const conversions = adGroup.conversions;
+      const ctr = impressions > 0 ? (clicks / impressions * 100).toFixed(2) : 0;
+      const cpc = clicks > 0 ? (spend / clicks).toFixed(2) : 0;
+
+      result += `${index}. **${adGroup.adgroup_name}**\n`;
       result += `   💰 지출: ${formatCurrency(spend)}\n`;
       result += `   👁️ 노출: ${formatNumber(impressions)}\n`;
       result += `   🖱️ 클릭: ${formatNumber(clicks)}\n`;
       result += `   🎯 전환: ${formatNumber(conversions)}\n`;
       result += `   📈 CTR: ${ctr}%\n`;
       result += `   💵 CPC: ${formatCurrency(cpc)}\n`;
+      result += `   🆔 ID: ${adGroupId}\n`;
       result += `\n`;
+      index++;
+      count++;
     });
 
     return result;
@@ -654,20 +877,54 @@ export class TikTokAdsService {
 
     let result = `🎨 **${periodText} TikTok Ads 소재 성과**\n\n`;
     
-    ads.slice(0, 15).forEach((row, index) => {
-      const metrics = row.metrics;
+    // TikTok API v1.3 응답 구조에 맞춰 광고 소재 데이터 집계
+    const adMap = new Map();
+    
+    ads.forEach(row => {
+      const dimensions = row.dimensions || {};
+      const metrics = row.metrics || {};
+      const adId = dimensions.ad_id;
       
-      const spend = parseFloat(metrics.spend || 0);
-      const impressions = parseInt(metrics.impressions || 0);
-      const clicks = parseInt(metrics.clicks || 0);
-      const conversions = parseFloat(metrics.conversions || 0);
-      const ctr = parseFloat(metrics.ctr || 0).toFixed(2);
-      const cpc = parseFloat(metrics.cpc || 0).toFixed(2);
-      const videoPlays = parseInt(metrics.video_play_actions || 0);
-      const video2s = parseInt(metrics.video_watched_2s || 0);
-      const video6s = parseInt(metrics.video_watched_6s || 0);
+      if (!adMap.has(adId)) {
+        adMap.set(adId, {
+          ad_name: metrics.ad_name || 'Unknown Ad',
+          spend: 0,
+          impressions: 0,
+          clicks: 0,
+          conversions: 0,
+          video_play_actions: 0,
+          video_watched_2s: 0,
+          video_watched_6s: 0
+        });
+      }
+      
+      const ad = adMap.get(adId);
+      ad.spend += parseFloat(metrics.spend || 0);
+      ad.impressions += parseInt(metrics.impressions || 0);
+      ad.clicks += parseInt(metrics.clicks || 0);
+      ad.conversions += parseFloat(metrics.conversions || 0);
+      ad.video_play_actions += parseInt(metrics.video_play_actions || 0);
+      ad.video_watched_2s += parseInt(metrics.video_watched_2s || 0);
+      ad.video_watched_6s += parseInt(metrics.video_watched_6s || 0);
+    });
 
-      result += `${index + 1}. **${metrics.ad_name}**\n`;
+    // 상위 15개만 표시
+    let index = 1;
+    let count = 0;
+    adMap.forEach((ad, adId) => {
+      if (count >= 15) return;
+      
+      const spend = ad.spend;
+      const impressions = ad.impressions;
+      const clicks = ad.clicks;
+      const conversions = ad.conversions;
+      const ctr = impressions > 0 ? (clicks / impressions * 100).toFixed(2) : 0;
+      const cpc = clicks > 0 ? (spend / clicks).toFixed(2) : 0;
+      const videoPlays = ad.video_play_actions;
+      const video2s = ad.video_watched_2s;
+      const video6s = ad.video_watched_6s;
+
+      result += `${index}. **${ad.ad_name}**\n`;
       result += `   💰 지출: ${formatCurrency(spend)}\n`;
       result += `   👁️ 노출: ${formatNumber(impressions)}\n`;
       result += `   🖱️ 클릭: ${formatNumber(clicks)}\n`;
@@ -677,7 +934,10 @@ export class TikTokAdsService {
       result += `   ▶️ 영상 재생: ${formatNumber(videoPlays)}\n`;
       result += `   ⏱️ 2초 시청: ${formatNumber(video2s)}\n`;
       result += `   ⏱️ 6초 시청: ${formatNumber(video6s)}\n`;
+      result += `   🆔 ID: ${adId}\n`;
       result += `\n`;
+      index++;
+      count++;
     });
 
     return result;
@@ -708,5 +968,191 @@ export class TikTokAdsService {
    */
   formatTikTokMetrics(data) {
     return standardizeMetrics(data, 'tiktok');
+  }
+
+  // === 키워드 매칭 함수 (단일/다중 키워드 지원) ===
+  
+  /**
+   * 키워드 매칭 함수 - 단일/다중 키워드 자동 판단
+   * @param {string} name - 캠페인명 또는 광고명
+   * @param {string} keywordString - 키워드 문자열 ("고병우" 또는 "고병우,다이즐")
+   * @returns {boolean} - 매칭 여부
+   */
+  matchesKeywords(name, keywordString) {
+    if (!keywordString || keywordString.trim() === '') {
+      return true; // 키워드가 없으면 모든 항목 매칭
+    }
+    
+    const lowerName = name.toLowerCase();
+    
+    if (!keywordString.includes(',')) {
+      // 단일 키워드 (기존 방식)
+      return lowerName.includes(keywordString.toLowerCase().trim());
+    } else {
+      // 다중 키워드 AND 조건
+      const keywords = keywordString.split(',')
+        .map(k => k.trim())
+        .filter(k => k.length > 0);
+      
+      return keywords.every(keyword => 
+        lowerName.includes(keyword.toLowerCase())
+      );
+    }
+  }
+
+  // === 통합 검색을 위한 새로운 메서드들 ===
+
+  /**
+   * 특정 날짜 범위에서 활동한 캠페인 목록을 성과 데이터와 함께 조회
+   */
+  async getCampaignListWithDateFilter(startDate, endDate) {
+    try {
+      const params = {
+        advertiser_id: ADVERTISER_ID,
+        start_date: startDate,
+        end_date: endDate,
+        data_level: 'AUCTION_CAMPAIGN',
+        report_type: 'BASIC',
+        dimensions: JSON.stringify(['campaign_id']),
+        metrics: JSON.stringify([
+          'campaign_name',
+          'spend'
+        ]),
+        page_size: 1000
+      };
+
+      const response = await this.makeTikTokRequest(API_ENDPOINTS.REPORT_INTEGRATED, params);
+      
+      // TikTok API 응답을 표준 형식으로 변환
+      const campaigns = response.data?.list || [];
+      const campaignMap = new Map();
+      
+      // 중복 캠페인 데이터 집계 (일별 데이터를 캠페인별로 합산)
+      campaigns.forEach(row => {
+        const dimensions = row.dimensions || {};
+        const metrics = row.metrics || {};
+        const campaignId = dimensions.campaign_id;
+        
+        if (!campaignMap.has(campaignId)) {
+          campaignMap.set(campaignId, {
+            campaign_id: campaignId,
+            campaign_name: metrics.campaign_name || 'Unknown Campaign',
+            name: metrics.campaign_name || 'Unknown Campaign', // 호환성을 위한 별칭
+            spend: 0
+          });
+        }
+        
+        const campaign = campaignMap.get(campaignId);
+        campaign.spend += parseFloat(metrics.spend || 0);
+      });
+
+      // Map을 배열로 변환하고 지출액 > 0인 캠페인만 필터링 후 지출순으로 정렬
+      return Array.from(campaignMap.values())
+        .filter(campaign => campaign.spend > 0)
+        .map(campaign => ({
+          ...campaign,
+          spend: campaign.spend.toFixed(2)
+        }))
+        .sort((a, b) => parseFloat(b.spend) - parseFloat(a.spend));
+
+    } catch (error) {
+      console.error('TikTok 캠페인 목록 조회 실패:', error.message);
+      throw new Error(`TikTok 캠페인 목록 조회 실패: ${error.message}`);
+    }
+  }
+
+  /**
+   * 특정 캠페인들의 광고별 상세 성과 조회
+   */
+  async getAdLevelPerformance(campaignIds, startDate, endDate) {
+    try {
+      const params = {
+        advertiser_id: ADVERTISER_ID,
+        service_type: "AUCTION",
+        report_type: "BASIC",
+        data_level: "AUCTION_AD",
+        dimensions: JSON.stringify(["ad_id"]),
+        metrics: JSON.stringify([
+          "ad_name",
+          "campaign_id",
+          "spend",
+          "impressions",
+          "clicks",
+          "ctr", 
+          "cpc",
+          "cpm",
+          "video_play_actions",
+          "video_watched_2s",
+          "video_watched_6s"
+        ]),
+        start_date: startDate,
+        end_date: endDate,
+        filtering: JSON.stringify([
+          {
+            "field_name": "campaign_ids",
+            "filter_type": "IN",
+            "filter_value": JSON.stringify(campaignIds)
+          }
+        ]),
+        page: 1,
+        page_size: 1000
+      };
+
+      const response = await this.makeTikTokRequest(API_ENDPOINTS.REPORT_INTEGRATED, params);
+      
+      // TikTok API 응답을 표준 형식으로 변환
+      const ads = response.data?.list || [];
+      const adMap = new Map();
+      
+      // 중복 광고 데이터 집계 (일별 데이터를 광고별로 합산)
+      ads.forEach(row => {
+        const dimensions = row.dimensions || {};
+        const metrics = row.metrics || {};
+        const adId = dimensions.ad_id;
+        
+        if (!adMap.has(adId)) {
+          adMap.set(adId, {
+            ad_id: adId,
+            ad_name: metrics.ad_name || `Ad ${adId}`,
+            name: metrics.ad_name || `Ad ${adId}`, // 호환성을 위한 별칭
+            campaign_id: metrics.campaign_id,
+            spend: 0,
+            impressions: 0,
+            clicks: 0,
+            video_play_actions: 0,
+            video_watched_2s: 0,
+            video_watched_6s: 0
+          });
+        }
+        
+        const ad = adMap.get(adId);
+        ad.spend += parseFloat(metrics.spend || 0);
+        ad.impressions += parseInt(metrics.impressions || 0);
+        ad.clicks += parseInt(metrics.clicks || 0);
+        ad.video_play_actions += parseInt(metrics.video_play_actions || 0);
+        ad.video_watched_2s += parseInt(metrics.video_watched_2s || 0);
+        ad.video_watched_6s += parseInt(metrics.video_watched_6s || 0);
+      });
+
+      // Map을 배열로 변환하고 요청한 캠페인 ID에 속하는 광고만 필터링 후 지출순으로 정렬
+      const campaignIdSet = new Set(campaignIds.map(id => id.toString()));
+      
+      return Array.from(adMap.values())
+        .filter(ad => campaignIdSet.has(ad.campaign_id?.toString()))
+        .map(ad => ({
+          ...ad,
+          spend: ad.spend.toFixed(2),
+          impressions: ad.impressions.toString(),
+          clicks: ad.clicks.toString(),
+          ctr: ad.impressions > 0 ? (ad.clicks / ad.impressions * 100).toFixed(2) : '0.00',
+          cpc: ad.clicks > 0 ? (ad.spend / ad.clicks).toFixed(2) : '0.00',
+          cpm: ad.impressions > 0 ? (ad.spend / ad.impressions * 1000).toFixed(2) : '0.00'
+        }))
+        .sort((a, b) => parseFloat(b.spend) - parseFloat(a.spend));
+
+    } catch (error) {
+      console.error('TikTok 광고별 성과 조회 실패:', error.message);
+      throw new Error(`TikTok 광고별 성과 조회 실패: ${error.message}`);
+    }
   }
 }

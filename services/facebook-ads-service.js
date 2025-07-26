@@ -410,7 +410,7 @@ export class FacebookAdsService {
         access_token: ACCESS_TOKEN,
         level: 'campaign',
         time_range: JSON.stringify({ since, until }),
-        fields: 'campaign_id,campaign_name,impressions,clicks,spend,ctr,cpc,cpp,cpm,conversions,conversion_rate_ranking,actions'
+        fields: 'campaign_id,campaign_name,impressions,clicks,spend,ctr,cpc,cpm,conversions,actions'
       };
 
       if (campaignIds && campaignIds.length > 0) {
@@ -667,7 +667,7 @@ export class FacebookAdsService {
       access_token: ACCESS_TOKEN,
       level: 'adset',
       time_range: JSON.stringify({ since, until }),
-      fields: 'adset_id,adset_name,campaign_name,impressions,clicks,spend,ctr,cpc,cpp,cpm,conversions,actions'
+      fields: 'adset_id,adset_name,campaign_name,impressions,clicks,spend,ctr,cpc,cpm,conversions,actions'
     };
 
     const filters = [];
@@ -896,7 +896,7 @@ export class FacebookAdsService {
       level: 'ad',
       limit: 100,
       time_range: JSON.stringify({ since, until }),
-      fields: 'ad_id,ad_name,campaign_name,adset_name,impressions,clicks,spend,ctr,cpc,cpp,cpm,conversions,actions'
+      fields: 'ad_id,ad_name,campaign_name,adset_name,impressions,clicks,spend,ctr,cpc,cpm,conversions,actions'
     };
 
     const filters = [];
@@ -1488,11 +1488,12 @@ export class FacebookAdsService {
           const url = `${BASE_URL}/act_${account.account_id}/insights`;
           const params = {
             access_token: ACCESS_TOKEN,
-            fields: 'ad_id,ad_name,campaign_id,campaign_name,spend,impressions,clicks,ctr,cpc,cpm',
+            fields: 'ad_id,ad_name,campaign_id,campaign_name,spend,impressions,clicks,ctr,cpc,cpm,conversions,actions',
             time_range: JSON.stringify({
               since: startDate,
               until: endDate
             }),
+            time_increment: '1', // 일별 breakdown 추가
             level: 'ad',
             filtering: JSON.stringify([{
               field: 'campaign.id',
@@ -1504,20 +1505,80 @@ export class FacebookAdsService {
 
           const response = await axios.get(url, { params });
           
-          const ads = (response.data.data || []).map(ad => ({
+          // 일별 데이터를 광고별로 그룹화 및 집계
+          const adGroups = {};
+          
+          (response.data.data || []).forEach(ad => {
+            const adId = ad.ad_id;
+            const date = ad.date_start; // Facebook에서 일별 breakdown 시 date_start 필드 사용
+            const spend = parseFloat(ad.spend || 0);
+            const impressions = parseInt(ad.impressions || 0);
+            const clicks = parseInt(ad.clicks || 0);
+            
+            // Actions에서 전환 데이터 추출
+            let conversions = 0;
+            if (ad.actions && Array.isArray(ad.actions)) {
+              const leadActions = ad.actions.find(action => action.action_type === 'lead')?.value || 0;
+              const purchaseActions = ad.actions.find(action => action.action_type === 'purchase')?.value || 0;
+              const registrationActions = ad.actions.find(action => action.action_type === 'complete_registration')?.value || 0;
+              conversions = parseInt(leadActions) + parseInt(purchaseActions) + parseInt(registrationActions);
+            }
+            
+            if (!adGroups[adId]) {
+              adGroups[adId] = {
+                ad_id: adId,
+                ad_name: ad.ad_name,
+                name: ad.ad_name,
+                campaign_id: ad.campaign_id,
+                campaign_name: ad.campaign_name,
+                account_id: account.account_id,
+                account_name: account.name,
+                dailyData: [],
+                totalSpend: 0,
+                totalImpressions: 0,
+                totalClicks: 0,
+                totalConversions: 0,
+                actions: ad.actions || []
+              };
+            }
+            
+            // 일별 데이터 추가
+            adGroups[adId].dailyData.push({
+              date: date,
+              spend: spend,
+              impressions: impressions,
+              clicks: clicks,
+              conversions: conversions
+            });
+            
+            // 총합 계산
+            adGroups[adId].totalSpend += spend;
+            adGroups[adId].totalImpressions += impressions;
+            adGroups[adId].totalClicks += clicks;
+            adGroups[adId].totalConversions += conversions;
+          });
+          
+          // 최종 결과 생성 (비율 지표 재계산)
+          const ads = Object.values(adGroups).map(ad => ({
             ad_id: ad.ad_id,
             ad_name: ad.ad_name,
-            name: ad.ad_name, // 호환성을 위한 별칭
+            name: ad.name,
             campaign_id: ad.campaign_id,
             campaign_name: ad.campaign_name,
-            spend: ad.spend || '0',
-            impressions: ad.impressions || '0',
-            clicks: ad.clicks || '0',
-            ctr: ad.ctr || '0',
-            cpc: ad.cpc || '0',
-            cpm: ad.cpm || '0',
-            account_id: account.account_id,
-            account_name: account.name
+            spend: ad.totalSpend.toFixed(2),
+            impressions: ad.totalImpressions.toString(),
+            clicks: ad.totalClicks.toString(),
+            ctr: ad.totalImpressions > 0 ? (ad.totalClicks / ad.totalImpressions * 100).toFixed(2) : '0.00',
+            cpc: ad.totalClicks > 0 ? (ad.totalSpend / ad.totalClicks).toFixed(2) : '0.00',
+            cpm: ad.totalImpressions > 0 ? (ad.totalSpend / ad.totalImpressions * 1000).toFixed(2) : '0.00',
+            conversions: ad.totalConversions.toString(),
+            cost_per_conversion: ad.totalConversions > 0 ? (ad.totalSpend / ad.totalConversions).toFixed(2) : '0.00',
+            costPerConversion: ad.totalConversions > 0 ? (ad.totalSpend / ad.totalConversions).toFixed(2) : '0.00',
+            conversion_rate: ad.totalClicks > 0 ? (ad.totalConversions / ad.totalClicks * 100).toFixed(2) : '0.00',
+            actions: ad.actions,
+            account_id: ad.account_id,
+            account_name: ad.account_name,
+            dailyData: ad.dailyData.sort((a, b) => a.date.localeCompare(b.date))
           }));
           
           allAds.push(...ads);

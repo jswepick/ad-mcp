@@ -1760,12 +1760,14 @@ export class GoogleAdsService {
             metrics.clicks,
             metrics.cost_micros,
             metrics.ctr,
-            metrics.average_cpc
+            metrics.conversions,
+            metrics.cost_per_conversion,
+            segments.date
           FROM ad_group_ad
           WHERE campaign.resource_name IN (${resourceFilter})
           AND segments.date BETWEEN '${startDate}' AND '${endDate}'
           AND metrics.impressions > 0
-          ORDER BY metrics.cost_micros DESC
+          ORDER BY segments.date, metrics.cost_micros DESC
         `;
 
         const resourceResponse = await this.makeGoogleAdsRequest(resourceQuery);
@@ -1773,18 +1775,66 @@ export class GoogleAdsService {
         if (resourceResponse.results && resourceResponse.results.length > 0) {
           console.log(`✅ Resource Name 방식 성공: ${resourceResponse.results.length}개 광고`);
           
-          return resourceResponse.results.map(row => ({
-            ad_id: row.adGroupAd.ad.id.toString(),
-            ad_name: row.adGroupAd.ad.name || `Ad ${row.adGroupAd.ad.id}`,
-            name: row.adGroupAd.ad.name || `Ad ${row.adGroupAd.ad.id}`,
-            campaign_id: row.campaign.id.toString(),
-            campaign_name: row.campaign.name,
-            spend: (row.metrics.costMicros / 1000000).toFixed(2),
-            impressions: row.metrics.impressions?.toString() || '0',
-            clicks: row.metrics.clicks?.toString() || '0',
-            ctr: (row.metrics.ctr * 100).toFixed(2),
-            cpc: (row.metrics.averageCpc / 1000000).toFixed(2),
-            cpm: '0'
+          // 일별 데이터를 광고별로 그룹화 및 집계
+          const adGroups = {};
+          
+          resourceResponse.results.forEach(row => {
+            const adId = row.adGroupAd.ad.id.toString();
+            const date = row.segments.date;
+            const costMicros = row.metrics.costMicros || 0;
+            const impressions = parseInt(row.metrics.impressions || 0);
+            const clicks = parseInt(row.metrics.clicks || 0);
+            const conversions = parseFloat(row.metrics.conversions || 0);
+            
+            if (!adGroups[adId]) {
+              adGroups[adId] = {
+                ad_id: adId,
+                ad_name: row.adGroupAd.ad.name || `Ad ${adId}`,
+                name: row.adGroupAd.ad.name || `Ad ${adId}`,
+                campaign_id: row.campaign.id.toString(),
+                campaign_name: row.campaign.name,
+                dailyData: [],
+                totalSpend: 0,
+                totalImpressions: 0,
+                totalClicks: 0,
+                totalConversions: 0
+              };
+            }
+            
+            // 일별 데이터 추가
+            adGroups[adId].dailyData.push({
+              date: date,
+              spend: (costMicros / 1000000),
+              impressions: impressions,
+              clicks: clicks,
+              conversions: conversions
+            });
+            
+            // 총합 계산
+            adGroups[adId].totalSpend += (costMicros / 1000000);
+            adGroups[adId].totalImpressions += impressions;
+            adGroups[adId].totalClicks += clicks;
+            adGroups[adId].totalConversions += conversions;
+          });
+          
+          // 최종 결과 생성 (비율 지표 재계산)
+          return Object.values(adGroups).map(ad => ({
+            ad_id: ad.ad_id,
+            ad_name: ad.ad_name,
+            name: ad.name,
+            campaign_id: ad.campaign_id,
+            campaign_name: ad.campaign_name,
+            spend: ad.totalSpend.toFixed(2),
+            impressions: ad.totalImpressions.toString(),
+            clicks: ad.totalClicks.toString(),
+            ctr: ad.totalImpressions > 0 ? (ad.totalClicks / ad.totalImpressions * 100).toFixed(2) : '0.00',
+            cpc: ad.totalClicks > 0 ? (ad.totalSpend / ad.totalClicks).toFixed(2) : '0.00',
+            cpm: ad.totalImpressions > 0 ? (ad.totalSpend / ad.totalImpressions * 1000).toFixed(2) : '0.00',
+            conversions: ad.totalConversions.toString(),
+            cost_per_conversion: ad.totalConversions > 0 ? (ad.totalSpend / ad.totalConversions).toFixed(2) : '0.00',
+            costPerConversion: ad.totalConversions > 0 ? (ad.totalSpend / ad.totalConversions).toFixed(2) : '0.00',
+            conversion_rate: ad.totalClicks > 0 ? (ad.totalConversions / ad.totalClicks * 100).toFixed(2) : '0.00',
+            dailyData: ad.dailyData.sort((a, b) => a.date.localeCompare(b.date))
           }));
         } else {
           console.log('❌ Resource Name 방식: 결과 없음, 클라이언트 필터링으로 폴백');
@@ -1806,11 +1856,13 @@ export class GoogleAdsService {
           metrics.clicks,
           metrics.cost_micros,
           metrics.ctr,
-          metrics.average_cpc
+          metrics.conversions,
+          metrics.cost_per_conversion,
+          segments.date
         FROM ad_group_ad
         WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
         AND metrics.impressions > 0
-        ORDER BY metrics.cost_micros DESC
+        ORDER BY segments.date, metrics.cost_micros DESC
       `;
 
       const fallbackResponse = await this.makeGoogleAdsRequest(fallbackQuery);
@@ -1822,24 +1874,75 @@ export class GoogleAdsService {
       
       console.log(`📊 전체 ${fallbackResponse.results.length}개 광고 조회됨, 클라이언트 필터링 적용 중...`);
       
-      // 모든 광고를 표준 형식으로 변환
-      const allAds = fallbackResponse.results.map(row => ({
-        ad_id: row.adGroupAd.ad.id.toString(),
-        ad_name: row.adGroupAd.ad.name || `Ad ${row.adGroupAd.ad.id}`,
-        name: row.adGroupAd.ad.name || `Ad ${row.adGroupAd.ad.id}`,
-        campaign_id: row.campaign.id.toString(),
-        campaign_name: row.campaign.name,
-        spend: (row.metrics.costMicros / 1000000).toFixed(2),
-        impressions: row.metrics.impressions?.toString() || '0',
-        clicks: row.metrics.clicks?.toString() || '0',
-        ctr: (row.metrics.ctr * 100).toFixed(2),
-        cpc: (row.metrics.averageCpc / 1000000).toFixed(2),
-        cpm: '0'
-      }));
-      
-      // 클라이언트 측에서 캠페인 ID로 필터링
+      // 일별 데이터를 광고별로 그룹화 및 집계 (클라이언트 필터링)
+      const adGroups = {};
       const targetCampaignIds = campaignIds.map(id => parseInt(id));
-      const filteredAds = this.filterByIds(allAds, targetCampaignIds, 'campaign_id');
+      
+      fallbackResponse.results.forEach(row => {
+        const campaignId = parseInt(row.campaign.id);
+        
+        // 캠페인 ID 필터링
+        if (!targetCampaignIds.includes(campaignId)) {
+          return;
+        }
+        
+        const adId = row.adGroupAd.ad.id.toString();
+        const date = row.segments.date;
+        const costMicros = row.metrics.costMicros || 0;
+        const impressions = parseInt(row.metrics.impressions || 0);
+        const clicks = parseInt(row.metrics.clicks || 0);
+        const conversions = parseFloat(row.metrics.conversions || 0);
+        
+        if (!adGroups[adId]) {
+          adGroups[adId] = {
+            ad_id: adId,
+            ad_name: row.adGroupAd.ad.name || `Ad ${adId}`,
+            name: row.adGroupAd.ad.name || `Ad ${adId}`,
+            campaign_id: campaignId.toString(),
+            campaign_name: row.campaign.name,
+            dailyData: [],
+            totalSpend: 0,
+            totalImpressions: 0,
+            totalClicks: 0,
+            totalConversions: 0
+          };
+        }
+        
+        // 일별 데이터 추가
+        adGroups[adId].dailyData.push({
+          date: date,
+          spend: (costMicros / 1000000),
+          impressions: impressions,
+          clicks: clicks,
+          conversions: conversions
+        });
+        
+        // 총합 계산
+        adGroups[adId].totalSpend += (costMicros / 1000000);
+        adGroups[adId].totalImpressions += impressions;
+        adGroups[adId].totalClicks += clicks;
+        adGroups[adId].totalConversions += conversions;
+      });
+      
+      // 최종 결과 생성 (비율 지표 재계산)
+      const filteredAds = Object.values(adGroups).map(ad => ({
+        ad_id: ad.ad_id,
+        ad_name: ad.ad_name,
+        name: ad.name,
+        campaign_id: ad.campaign_id,
+        campaign_name: ad.campaign_name,
+        spend: ad.totalSpend.toFixed(2),
+        impressions: ad.totalImpressions.toString(),
+        clicks: ad.totalClicks.toString(),
+        ctr: ad.totalImpressions > 0 ? (ad.totalClicks / ad.totalImpressions * 100).toFixed(2) : '0.00',
+        cpc: ad.totalClicks > 0 ? (ad.totalSpend / ad.totalClicks).toFixed(2) : '0.00',
+        cpm: ad.totalImpressions > 0 ? (ad.totalSpend / ad.totalImpressions * 1000).toFixed(2) : '0.00',
+        conversions: ad.totalConversions.toString(),
+        cost_per_conversion: ad.totalConversions > 0 ? (ad.totalSpend / ad.totalConversions).toFixed(2) : '0.00',
+        costPerConversion: ad.totalConversions > 0 ? (ad.totalSpend / ad.totalConversions).toFixed(2) : '0.00',
+        conversion_rate: ad.totalClicks > 0 ? (ad.totalConversions / ad.totalClicks * 100).toFixed(2) : '0.00',
+        dailyData: ad.dailyData.sort((a, b) => a.date.localeCompare(b.date))
+      }));
       
       console.log(`✅ 클라이언트 필터링 완료: ${filteredAds.length}개 광고`);
       

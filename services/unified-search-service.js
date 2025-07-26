@@ -5,6 +5,7 @@
 
 import { parseUserCommand, validateCommand, formatCommandSummary } from '../utils/command-parser.js';
 import { formatNumber, formatCurrency, formatPercent } from '../utils/format-utils.js';
+import { calculateDailyTrends, formatTrendText, calculatePeriodSummary } from '../utils/daily-trend-calculator.js';
 
 export class UnifiedSearchService {
   constructor(services) {
@@ -243,9 +244,9 @@ export class UnifiedSearchService {
     let result = `${summary}\n\n`;
 
     const platformNames = {
-      facebook: '📱 **Facebook Ads**',
-      google: '🔍 **Google Ads**',
-      tiktok: '📱 **TikTok Ads**'
+      facebook: '**Facebook Ads**',
+      google: '**Google Ads**',
+      tiktok: '**TikTok Ads**'
     };
 
     let totalCampaigns = 0;
@@ -259,25 +260,25 @@ export class UnifiedSearchService {
       const platformName = platformNames[platform] || platform;
       
       if (error) {
-        result += `${platformName} - ❌ 오류: ${error}\n\n`;
+        result += `${platformName} - Error: ${error}\n\n`;
         return;
       }
 
       if (campaigns.length === 0) {
-        result += `${platformName} - 매칭된 캠페인 없음\n\n`;
+        result += `${platformName} - No matching campaigns\n\n`;
         return;
       }
 
-      result += `${platformName} (${campaigns.length}개 캠페인, ${ads.length}개 광고)\n\n`;
+      result += `${platformName} (${campaigns.length} campaigns, ${ads.length} ads)\n\n`;
       
       // 캠페인별로 그룹화된 광고들 표시
       const campaignGroups = this.groupAdsByCampaign(campaigns, ads);
       
       campaignGroups.forEach(({ campaign, campaignAds }) => {
-        result += `**캠페인**: ${campaign.campaign_name || campaign.name}\n`;
+        result += `**Campaign**: ${campaign.campaign_name || campaign.name}\n`;
         
         if (campaignAds.length === 0) {
-          result += `└── 광고 데이터 없음\n\n`;
+          result += `└── No ad data available\n\n`;
           return;
         }
 
@@ -288,10 +289,55 @@ export class UnifiedSearchService {
           const spend = parseFloat(ad.spend || 0);
           const impressions = parseInt(ad.impressions || 0);
           const clicks = parseInt(ad.clicks || 0);
+          let conversions = parseInt(ad.conversions || 0);
           const ctr = impressions > 0 ? (clicks / impressions * 100).toFixed(2) : '0.00';
+          let costPerConversion = parseFloat(ad.cost_per_conversion || ad.costPerConversion || 0);
+          
+          // Facebook Actions 데이터에서 전환 정보 추출
+          if (conversions === 0 && ad.actions && Array.isArray(ad.actions)) {
+            const actions = ad.actions;
+            const leadActions = actions.find(action => action.action_type === 'lead')?.value || 0;
+            const purchaseActions = actions.find(action => action.action_type === 'purchase')?.value || 0;
+            const registrationActions = actions.find(action => action.action_type === 'complete_registration')?.value || 0;
+            
+            // 주요 전환 액션 합계
+            conversions = parseInt(leadActions) + parseInt(purchaseActions) + parseInt(registrationActions);
+            
+            // Actions가 있으면 CPA 계산
+            if (conversions > 0 && costPerConversion === 0) {
+              costPerConversion = spend / conversions;
+            }
+          }
+          
+          const conversionRate = clicks > 0 ? (conversions / clicks * 100).toFixed(2) : '0.00';
+          
+          // CPM, CPC 계산
+          const cpm = impressions > 0 ? (spend / impressions * 1000).toFixed(2) : '0.00';
+          const cpc = clicks > 0 ? (spend / clicks).toFixed(2) : '0.00';
           
           result += `${prefix} **${ad.ad_name || ad.name}**\n`;
-          result += `    💰 ${formatCurrency(spend)} | 👁️ ${formatNumber(impressions)} | 🖱️ ${formatNumber(clicks)} | 📈 CTR ${ctr}%\n`;
+          result += `    광고비: ${formatCurrency(spend)} | 노출수: ${formatNumber(impressions)} | 클릭수: ${formatNumber(clicks)} | ctr: ${ctr}% | cpm: ${formatCurrency(cpm)} | cpc: ${formatCurrency(cpc)}\n`;
+          
+          // 전환 관련 지표 추가
+          if (conversions > 0 || costPerConversion > 0) {
+            result += `    전환수: ${formatNumber(conversions)} | 전환율: ${conversionRate}% | 전환단가: ${formatCurrency(costPerConversion)}\n`;
+          }
+          
+          // 일별 성과 추이 표시 (dailyData가 있는 경우)
+          if (ad.dailyData && ad.dailyData.length > 1) {
+            result += `    **일별 성과 추이:**\n`;
+            const trendsData = calculateDailyTrends(ad.dailyData);
+            
+            trendsData.forEach(dayData => {
+              const trendSpend = formatTrendText(dayData.trends, 'spend');
+              const trendClicks = formatTrendText(dayData.trends, 'clicks');
+              result += `      ${dayData.date}: 광고비 ${formatCurrency(dayData.spend)} ${trendSpend}, 클릭 ${dayData.clicks} ${trendClicks}\n`;
+            });
+            
+            // 기간 요약
+            const summary = calculatePeriodSummary(ad.dailyData);
+            result += `      **기간 요약**: ${summary.days}일간 평균 광고비 ${formatCurrency(summary.avgSpend)}, 평균 클릭 ${summary.avgClicks}\n`;
+          }
           
           // 전체 집계
           totalSpend += spend;
@@ -310,14 +356,14 @@ export class UnifiedSearchService {
     if (totalCampaigns > 0) {
       const overallCTR = totalImpressions > 0 ? (totalClicks / totalImpressions * 100).toFixed(2) : '0.00';
       
-      result += `📊 **전체 요약**\n`;
-      result += `- 총 ${totalCampaigns}개 캠페인, ${totalAds}개 광고\n`;
-      result += `- 총 지출: ${formatCurrency(totalSpend)}\n`;
-      result += `- 총 노출: ${formatNumber(totalImpressions)}\n`;
-      result += `- 총 클릭: ${formatNumber(totalClicks)}\n`;
-      result += `- 전체 CTR: ${overallCTR}%`;
+      result += `**Summary**\n`;
+      result += `- total_campaigns: ${totalCampaigns}, total_ads: ${totalAds}\n`;
+      result += `- total_spend: ${formatCurrency(totalSpend)}\n`;
+      result += `- total_impressions: ${formatNumber(totalImpressions)}\n`;
+      result += `- total_clicks: ${formatNumber(totalClicks)}\n`;
+      result += `- overall_ctr: ${overallCTR}%`;
     } else {
-      result += `ℹ️ 지정된 조건에 맞는 캠페인을 찾을 수 없습니다.`;
+      result += `No campaigns found matching the specified criteria.`;
     }
 
     return {

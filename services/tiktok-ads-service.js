@@ -1071,7 +1071,7 @@ export class TikTokAdsService {
         service_type: "AUCTION",
         report_type: "BASIC",
         data_level: "AUCTION_AD",
-        dimensions: JSON.stringify(["ad_id"]),
+        dimensions: JSON.stringify(["ad_id", "stat_time_day"]),
         metrics: JSON.stringify([
           "ad_name",
           "campaign_id",
@@ -1081,9 +1081,9 @@ export class TikTokAdsService {
           "ctr", 
           "cpc",
           "cpm",
-          "video_play_actions",
-          "video_watched_2s",
-          "video_watched_6s"
+          "conversion",
+          "conversion_rate_v2",
+          "cost_per_conversion"
         ]),
         start_date: startDate,
         end_date: endDate,
@@ -1104,49 +1104,71 @@ export class TikTokAdsService {
       const ads = response.data?.list || [];
       const adMap = new Map();
       
-      // 중복 광고 데이터 집계 (일별 데이터를 광고별로 합산)
+      // 일별 데이터를 광고별로 그룹화 및 집계
       ads.forEach(row => {
         const dimensions = row.dimensions || {};
         const metrics = row.metrics || {};
         const adId = dimensions.ad_id;
+        const date = dimensions.stat_time_day; // 일별 날짜 정보
         
         if (!adMap.has(adId)) {
           adMap.set(adId, {
             ad_id: adId,
             ad_name: metrics.ad_name || `Ad ${adId}`,
-            name: metrics.ad_name || `Ad ${adId}`, // 호환성을 위한 별칭
+            name: metrics.ad_name || `Ad ${adId}`,
             campaign_id: metrics.campaign_id,
-            spend: 0,
-            impressions: 0,
-            clicks: 0,
-            video_play_actions: 0,
-            video_watched_2s: 0,
-            video_watched_6s: 0
+            dailyData: [],
+            totalSpend: 0,
+            totalImpressions: 0,
+            totalClicks: 0,
+            totalConversions: 0
           });
         }
         
         const ad = adMap.get(adId);
-        ad.spend += parseFloat(metrics.spend || 0);
-        ad.impressions += parseInt(metrics.impressions || 0);
-        ad.clicks += parseInt(metrics.clicks || 0);
-        ad.video_play_actions += parseInt(metrics.video_play_actions || 0);
-        ad.video_watched_2s += parseInt(metrics.video_watched_2s || 0);
-        ad.video_watched_6s += parseInt(metrics.video_watched_6s || 0);
+        const spend = parseFloat(metrics.spend || 0);
+        const impressions = parseInt(metrics.impressions || 0);
+        const clicks = parseInt(metrics.clicks || 0);
+        const conversions = parseFloat(metrics.conversion || 0);
+        
+        // 일별 데이터 추가
+        ad.dailyData.push({
+          date: date,
+          spend: spend,
+          impressions: impressions,
+          clicks: clicks,
+          conversions: conversions
+        });
+        
+        // 총합 계산
+        ad.totalSpend += spend;
+        ad.totalImpressions += impressions;
+        ad.totalClicks += clicks;
+        ad.totalConversions += conversions;
       });
 
       // Map을 배열로 변환하고 요청한 캠페인 ID에 속하는 광고만 필터링 후 지출순으로 정렬
       const campaignIdSet = new Set(campaignIds.map(id => id.toString()));
       
+      // 최종 결과 생성 (비율 지표 재계산)
       return Array.from(adMap.values())
         .filter(ad => campaignIdSet.has(ad.campaign_id?.toString()))
         .map(ad => ({
-          ...ad,
-          spend: ad.spend.toFixed(2),
-          impressions: ad.impressions.toString(),
-          clicks: ad.clicks.toString(),
-          ctr: ad.impressions > 0 ? (ad.clicks / ad.impressions * 100).toFixed(2) : '0.00',
-          cpc: ad.clicks > 0 ? (ad.spend / ad.clicks).toFixed(2) : '0.00',
-          cpm: ad.impressions > 0 ? (ad.spend / ad.impressions * 1000).toFixed(2) : '0.00'
+          ad_id: ad.ad_id,
+          ad_name: ad.ad_name,
+          name: ad.name,
+          campaign_id: ad.campaign_id,
+          spend: ad.totalSpend.toFixed(2),
+          impressions: ad.totalImpressions.toString(),
+          clicks: ad.totalClicks.toString(),
+          conversions: ad.totalConversions.toString(),
+          ctr: ad.totalImpressions > 0 ? (ad.totalClicks / ad.totalImpressions * 100).toFixed(2) : '0.00',
+          cpc: ad.totalClicks > 0 ? (ad.totalSpend / ad.totalClicks).toFixed(2) : '0.00',
+          cpm: ad.totalImpressions > 0 ? (ad.totalSpend / ad.totalImpressions * 1000).toFixed(2) : '0.00',
+          cost_per_conversion: ad.totalConversions > 0 ? (ad.totalSpend / ad.totalConversions).toFixed(2) : '0.00',
+          costPerConversion: ad.totalConversions > 0 ? (ad.totalSpend / ad.totalConversions).toFixed(2) : '0.00',
+          conversion_rate: ad.totalClicks > 0 ? (ad.totalConversions / ad.totalClicks * 100).toFixed(2) : '0.00',
+          dailyData: ad.dailyData.sort((a, b) => a.date.localeCompare(b.date))
         }))
         .sort((a, b) => parseFloat(b.spend) - parseFloat(a.spend));
 

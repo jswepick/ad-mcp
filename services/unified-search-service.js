@@ -66,6 +66,14 @@ export class UnifiedSearchService {
           type: 'object',
           properties: {}
         }
+      },
+      {
+        name: 'test_html_output',
+        description: 'HTML 출력 렌더링 테스트용 도구입니다',
+        inputSchema: {
+          type: 'object',
+          properties: {}
+        }
       }
     ];
   }
@@ -80,6 +88,8 @@ export class UnifiedSearchService {
           return await this.executeStructuredSearch(args.command);
         case 'search_help':
           return this.getSearchHelp();
+        case 'test_html_output':
+          return this.testHtmlOutput();
         default:
           throw new Error(`Unknown unified search tool: ${toolName}`);
       }
@@ -469,6 +479,95 @@ export class UnifiedSearchService {
         {
           type: 'text',
           text: helpText
+        }
+      ]
+    };
+  }
+
+  /**
+   * HTML 출력 테스트
+   */
+  testHtmlOutput() {
+    const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>HTML 출력 테스트</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1 { color: #333; }
+    table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+    th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+    th { background-color: #f2f2f2; font-weight: bold; }
+    .increase { color: #28a745; font-weight: bold; }
+    .decrease { color: #dc3545; font-weight: bold; }
+    .neutral { color: #6c757d; }
+    .metric-row:hover { background-color: #f8f9fa; }
+  </style>
+</head>
+<body>
+  <h1>📊 HTML 출력 렌더링 테스트</h1>
+  
+  <h2>기본 테이블 테스트</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>날짜</th>
+        <th>광고비</th>
+        <th>노출수</th>
+        <th>클릭수</th>
+        <th>CTR</th>
+        <th>변화</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="metric-row">
+        <td>2025-07-21</td>
+        <td>₩50,000</td>
+        <td>10,500</td>
+        <td>120</td>
+        <td>1.14%</td>
+        <td class="increase">▲ +5,000 (+11.1%)</td>
+      </tr>
+      <tr class="metric-row">
+        <td>2025-07-22</td>
+        <td>₩45,000</td>
+        <td>9,800</td>
+        <td>115</td>
+        <td>1.17%</td>
+        <td class="decrease">▼ -5,000 (-10.0%)</td>
+      </tr>
+      <tr class="metric-row">
+        <td>2025-07-23</td>
+        <td>₩45,000</td>
+        <td>9,800</td>
+        <td>115</td>
+        <td>1.17%</td>
+        <td class="neutral">변화없음</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>스타일 테스트</h2>
+  <p>이 테스트는 다음을 확인합니다:</p>
+  <ul>
+    <li><strong>HTML 태그 렌더링</strong>: 테이블, 제목, 리스트 등</li>
+    <li><strong>CSS 스타일 적용</strong>: 색상, 폰트, 호버 효과 등</li>
+    <li><strong>한글 및 특수문자</strong>: ₩, ▲, ▼, % 등</li>
+    <li><strong>반응형 요소</strong>: 테이블 호버 효과</li>
+  </ul>
+
+  <div style="background-color: #e7f3ff; padding: 15px; border-radius: 5px; margin: 20px 0;">
+    <strong>💡 참고:</strong> 이 HTML이 제대로 렌더링되면 실제 광고 성과 리포트를 HTML 형식으로 제공할 수 있습니다.
+  </div>
+</body>
+</html>`;
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: htmlContent
         }
       ]
     };

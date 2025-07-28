@@ -588,8 +588,8 @@ export class TikTokAdsService {
     const url = `${BASE_URL}${endpoint}`;
     
     try {
-      console.log(`TikTok API Request: ${method} ${url}`);
-      console.log('Params:', JSON.stringify(params, null, 2));
+      console.error(`TikTok API Request: ${method} ${url}`);
+      console.error('Params:', JSON.stringify(params, null, 2));
 
       const config = {
         method,
@@ -609,7 +609,7 @@ export class TikTokAdsService {
       }
 
       const response = await axios(config);
-      console.log(`TikTok API Response: ${response.status}`);
+      console.error(`TikTok API Response: ${response.status}`);
 
       // TikTok API 응답 구조 확인
       if (response.data?.code !== 0) {

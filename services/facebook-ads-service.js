@@ -1405,7 +1405,7 @@ export class FacebookAdsService {
         return [];
       }
 
-      console.log(`Facebook: ${accounts.length}개의 활성 광고 계정에서 캠페인 조회 중...`);
+      console.error(`Facebook: ${accounts.length}개의 활성 광고 계정에서 캠페인 조회 중...`);
 
       // 2단계: 각 계정에서 캠페인 조회
       const allCampaigns = [];
@@ -1446,7 +1446,7 @@ export class FacebookAdsService {
         }
       }
 
-      console.log(`Facebook: 총 ${allCampaigns.length}개 캠페인 발견`);
+      console.error(`Facebook: 총 ${allCampaigns.length}개 캠페인 발견`);
       
       return allCampaigns.sort((a, b) => parseFloat(b.spend) - parseFloat(a.spend));
 
@@ -1478,7 +1478,7 @@ export class FacebookAdsService {
         return [];
       }
 
-      console.log(`Facebook: ${accounts.length}개의 활성 광고 계정에서 광고 조회 중...`);
+      console.error(`Facebook: ${accounts.length}개의 활성 광고 계정에서 광고 조회 중...`);
 
       // 2단계: 각 계정에서 해당 캠페인의 광고 조회
       const allAds = [];
@@ -1589,7 +1589,7 @@ export class FacebookAdsService {
         }
       }
 
-      console.log(`Facebook: 총 ${allAds.length}개 광고 발견`);
+      console.error(`Facebook: 총 ${allAds.length}개 광고 발견`);
       
       return allAds.sort((a, b) => parseFloat(b.spend) - parseFloat(a.spend));
 

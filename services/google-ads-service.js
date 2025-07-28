@@ -1652,7 +1652,7 @@ export class GoogleAdsService {
         : `segments.date BETWEEN '${startDate}' AND '${endDate}'`;
       
       // 1단계: 전체 캠페인 조회 + 날짜 + 메트릭 (클라이언트 필터링 방식)
-      console.log(`[Google Ads] 캠페인 조회 시작: ${startDate} ~ ${endDate}`);
+      console.error(`[Google Ads] 캠페인 조회 시작: ${startDate} ~ ${endDate}`);
       
       const query = `
         SELECT 
@@ -1671,7 +1671,7 @@ export class GoogleAdsService {
       const response = await this.makeGoogleAdsRequest(query);
       
       if (!response.results || response.results.length === 0) {
-        console.log('[Google Ads] 해당 날짜에 성과 있는 캠페인이 없습니다.');
+        console.error('[Google Ads] 해당 날짜에 성과 있는 캠페인이 없습니다.');
         return [];
       }
 
@@ -1685,9 +1685,9 @@ export class GoogleAdsService {
         date: row.segments.date
       }));
 
-      console.log(`[Google Ads] 캠페인 조회 성공: ${campaigns.length}개 캠페인`);
+      console.error(`[Google Ads] 캠페인 조회 성공: ${campaigns.length}개 캠페인`);
       const totalSpend = campaigns.reduce((sum, c) => sum + parseFloat(c.spend), 0);
-      console.log(`[Google Ads] 총 지출: $${totalSpend.toFixed(2)}`);
+      console.error(`[Google Ads] 총 지출: $${totalSpend.toFixed(2)}`);
       
       return campaigns;
 
@@ -1696,7 +1696,7 @@ export class GoogleAdsService {
       
       // 날짜 없이 기본 조회 시도 (fallback)
       try {
-        console.log('[Google Ads] 날짜 없이 기본 캠페인 조회 시도...');
+        console.error('[Google Ads] 날짜 없이 기본 캠페인 조회 시도...');
         
         const fallbackQuery = `
           SELECT 
@@ -1714,7 +1714,7 @@ export class GoogleAdsService {
         const fallbackResponse = await this.makeGoogleAdsRequest(fallbackQuery);
         
         if (fallbackResponse.results && fallbackResponse.results.length > 0) {
-          console.log(`[Google Ads] Fallback 성공: ${fallbackResponse.results.length}개 캠페인`);
+          console.error(`[Google Ads] Fallback 성공: ${fallbackResponse.results.length}개 캠페인`);
           
           return fallbackResponse.results.map(row => ({
             campaign_id: row.campaign.id.toString(),
@@ -1740,7 +1740,7 @@ export class GoogleAdsService {
     try {
       await this.getAccessToken();
       
-      console.log(`🔍 광고 성과 조회: ${campaignIds.length}개 캠페인, ${startDate} ~ ${endDate}`);
+      console.error(`🔍 광고 성과 조회: ${campaignIds.length}개 캠페인, ${startDate} ~ ${endDate}`);
       
       // 방법 1: Resource Name 방식 시도
       try {
@@ -1748,7 +1748,7 @@ export class GoogleAdsService {
         const resourceNames = this.buildResourceNames(CUSTOMER_ID, campaignIds);
         const resourceFilter = resourceNames.map(name => `'${name}'`).join(', ');
         
-        console.log('📊 Resource Name 방식으로 광고 조회 시도...');
+        console.error('📊 Resource Name 방식으로 광고 조회 시도...');
         
         const resourceQuery = `
           SELECT 
@@ -1773,7 +1773,7 @@ export class GoogleAdsService {
         const resourceResponse = await this.makeGoogleAdsRequest(resourceQuery);
         
         if (resourceResponse.results && resourceResponse.results.length > 0) {
-          console.log(`✅ Resource Name 방식 성공: ${resourceResponse.results.length}개 광고`);
+          console.error(`✅ Resource Name 방식 성공: ${resourceResponse.results.length}개 광고`);
           
           // 일별 데이터를 광고별로 그룹화 및 집계
           const adGroups = {};
@@ -1837,14 +1837,14 @@ export class GoogleAdsService {
             dailyData: ad.dailyData.sort((a, b) => a.date.localeCompare(b.date))
           }));
         } else {
-          console.log('❌ Resource Name 방식: 결과 없음, 클라이언트 필터링으로 폴백');
+          console.error('❌ Resource Name 방식: 결과 없음, 클라이언트 필터링으로 폴백');
         }
       } catch (resourceError) {
-        console.log(`❌ Resource Name 방식 실패: ${resourceError.message}, 클라이언트 필터링으로 폴백`);
+        console.error(`❌ Resource Name 방식 실패: ${resourceError.message}, 클라이언트 필터링으로 폴백`);
       }
       
       // 방법 2: 클라이언트 측 필터링 방식 (폴백)
-      console.log('📊 클라이언트 필터링 방식으로 광고 조회...');
+      console.error('📊 클라이언트 필터링 방식으로 광고 조회...');
       
       const fallbackQuery = `
         SELECT 
@@ -1868,11 +1868,11 @@ export class GoogleAdsService {
       const fallbackResponse = await this.makeGoogleAdsRequest(fallbackQuery);
       
       if (!fallbackResponse.results || fallbackResponse.results.length === 0) {
-        console.log('❌ 클라이언트 필터링: 전체 광고 조회 실패');
+        console.error('❌ 클라이언트 필터링: 전체 광고 조회 실패');
         return [];
       }
       
-      console.log(`📊 전체 ${fallbackResponse.results.length}개 광고 조회됨, 클라이언트 필터링 적용 중...`);
+      console.error(`📊 전체 ${fallbackResponse.results.length}개 광고 조회됨, 클라이언트 필터링 적용 중...`);
       
       // 일별 데이터를 광고별로 그룹화 및 집계 (클라이언트 필터링)
       const adGroups = {};
@@ -1944,7 +1944,7 @@ export class GoogleAdsService {
         dailyData: ad.dailyData.sort((a, b) => a.date.localeCompare(b.date))
       }));
       
-      console.log(`✅ 클라이언트 필터링 완료: ${filteredAds.length}개 광고`);
+      console.error(`✅ 클라이언트 필터링 완료: ${filteredAds.length}개 광고`);
       
       return filteredAds;
       

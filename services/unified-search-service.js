@@ -5,7 +5,7 @@
 
 import { parseUserCommand, validateCommand, formatCommandSummary } from '../utils/command-parser.js';
 import { formatNumber, formatCurrency, formatPercent } from '../utils/format-utils.js';
-import { calculateDailyTrends, formatTrendText, calculatePeriodSummary } from '../utils/daily-trend-calculator.js';
+import { calculateDailyTrends, formatTrendText, calculatePeriodSummary, calculateDerivedMetrics } from '../utils/daily-trend-calculator.js';
 
 export class UnifiedSearchService {
   constructor(services) {
@@ -102,7 +102,7 @@ export class UnifiedSearchService {
           content: [
             {
               type: 'text',
-              text: `❌ **명령어 오류**\n\n${command.errors.join('\n')}\n\n**올바른 형식:**\n키워드:[검색어] 날짜:[시작일-종료일] 매체:[매체1,매체2,...]\n\n**예시:**\n키워드:고병우 날짜:20250720-20250721 매체:구글,페이스북`
+              text: `**명령어 오류**\n\n${command.errors.join('\n')}\n\n**올바른 형식:**\n키워드:[검색어] 날짜:[시작일-종료일] 매체:[매체1,매체2,...]\n\n**예시:**\n키워드:고병우 날짜:20250720-20250721 매체:구글,페이스북`
             }
           ]
         };
@@ -329,14 +329,39 @@ export class UnifiedSearchService {
             const trendsData = calculateDailyTrends(ad.dailyData);
             
             trendsData.forEach(dayData => {
-              const trendSpend = formatTrendText(dayData.trends, 'spend');
-              const trendClicks = formatTrendText(dayData.trends, 'clicks');
-              result += `      ${dayData.date}: 광고비 ${formatCurrency(dayData.spend)} ${trendSpend}, 클릭 ${dayData.clicks} ${trendClicks}\n`;
+              const { derivedMetrics, trends } = dayData;
+              
+              // 기본 추이 데이터
+              const trendSpend = formatTrendText(trends, 'spend');
+              const trendImpressions = formatTrendText(trends, 'impressions');
+              const trendClicks = formatTrendText(trends, 'clicks');
+              
+              // 파생 지표 추이 데이터
+              const trendCtr = formatTrendText(trends, 'ctr');
+              const trendCpm = formatTrendText(trends, 'cpm');
+              const trendCpc = formatTrendText(trends, 'cpc');
+              
+              result += `      ${dayData.date}:\n`;
+              result += `        광고비: ${formatCurrency(dayData.spend)} ${trendSpend} | 노출수: ${formatNumber(dayData.impressions)} ${trendImpressions} | 클릭수: ${formatNumber(dayData.clicks)} ${trendClicks}\n`;
+              result += `        CTR: ${derivedMetrics.ctr}% ${trendCtr} | CPM: ${formatCurrency(derivedMetrics.cpm)} ${trendCpm} | CPC: ${formatCurrency(derivedMetrics.cpc)} ${trendCpc}\n`;
+              
+              // 전환 관련 지표 (있는 경우)
+              const dayConversions = parseFloat(dayData.conversions || 0);
+              if (dayConversions > 0) {
+                const trendConversions = formatTrendText(trends, 'conversions');
+                const trendConversionRate = formatTrendText(trends, 'conversion_rate');
+                const trendCostPerConversion = formatTrendText(trends, 'cost_per_conversion');
+                
+                result += `        전환수: ${formatNumber(dayConversions)} ${trendConversions} | 전환율: ${derivedMetrics.conversion_rate}% ${trendConversionRate} | 전환단가: ${formatCurrency(derivedMetrics.cost_per_conversion)} ${trendCostPerConversion}\n`;
+              }
             });
             
             // 기간 요약
             const summary = calculatePeriodSummary(ad.dailyData);
-            result += `      **기간 요약**: ${summary.days}일간 평균 광고비 ${formatCurrency(summary.avgSpend)}, 평균 클릭 ${summary.avgClicks}\n`;
+            result += `      **기간 요약**: ${summary.days}일간 평균 - 광고비: ${formatCurrency(summary.avgSpend)}, 노출수: ${formatNumber(summary.avgImpressions)}, 클릭수: ${formatNumber(summary.avgClicks)}\n`;
+            if (summary.avgConversions > 0) {
+              result += `        평균 전환수: ${formatNumber(summary.avgConversions)}\n`;
+            }
           }
           
           // 전체 집계
@@ -398,24 +423,24 @@ export class UnifiedSearchService {
    * 검색 도움말 반환
    */
   getSearchHelp() {
-    const helpText = `🔍 **정형화된 캠페인 검색 도구 사용법**
+    const helpText = `**정형화된 캠페인 검색 도구 사용법**
 
 **기본 형식:**
 \`키워드:[검색어] 날짜:[날짜범위] 매체:[매체목록]\`
 
 **파라미터 설명:**
 
-📝 **키워드** (필수)
+**키워드** (필수)
 - 캠페인명에서 검색할 키워드
 - 예: \`키워드:고병우\`, \`키워드:치아교정\`
 
-📅 **날짜** (선택, 기본값: 어제)
+**날짜** (선택, 기본값: 어제)
 - \`20250720-20250721\`: 특정 기간
 - \`어제\`: 어제 하루
 - \`오늘\`: 오늘 하루  
 - \`7일\`: 최근 7일
 
-📱 **매체** (선택, 기본값: 전체)
+**매체** (선택, 기본값: 전체)
 - \`페이스북\`, \`facebook\`, \`fb\`
 - \`구글\`, \`google\`, \`구글광고\`
 - \`틱톡\`, \`tiktok\`
@@ -457,7 +482,7 @@ export class UnifiedSearchService {
       content: [
         {
           type: 'text',
-          text: `❌ **통합 검색 오류**\n\n${message}\n\n도움말을 보려면 \`search_help\` 도구를 사용하세요.`
+          text: `**통합 검색 오류**\n\n${message}\n\n도움말을 보려면 \`search_help\` 도구를 사용하세요.`
         }
       ]
     };

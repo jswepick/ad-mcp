@@ -21,24 +21,38 @@ export function calculateDailyTrends(dailyData) {
       // 첫 번째 날은 비교할 전일 데이터가 없음
       return {
         ...currentDay,
+        derivedMetrics: calculateDerivedMetrics(currentDay),
         trends: {
           spend: { change: 0, changePercent: 0 },
           impressions: { change: 0, changePercent: 0 },
           clicks: { change: 0, changePercent: 0 },
-          conversions: { change: 0, changePercent: 0 }
+          conversions: { change: 0, changePercent: 0 },
+          ctr: { change: 0, changePercent: 0 },
+          cpm: { change: 0, changePercent: 0 },
+          cpc: { change: 0, changePercent: 0 },
+          conversion_rate: { change: 0, changePercent: 0 },
+          cost_per_conversion: { change: 0, changePercent: 0 }
         }
       };
     }
 
     const previousDay = sortedData[index - 1];
+    const currentDerived = calculateDerivedMetrics(currentDay);
+    const previousDerived = calculateDerivedMetrics(previousDay);
     
     return {
       ...currentDay,
+      derivedMetrics: currentDerived,
       trends: {
         spend: calculateChange(previousDay.spend, currentDay.spend),
         impressions: calculateChange(previousDay.impressions, currentDay.impressions),
         clicks: calculateChange(previousDay.clicks, currentDay.clicks),
-        conversions: calculateChange(previousDay.conversions, currentDay.conversions)
+        conversions: calculateChange(previousDay.conversions, currentDay.conversions),
+        ctr: calculateChange(previousDerived.ctr, currentDerived.ctr),
+        cpm: calculateChange(previousDerived.cpm, currentDerived.cpm),
+        cpc: calculateChange(previousDerived.cpc, currentDerived.cpc),
+        conversion_rate: calculateChange(previousDerived.conversion_rate, currentDerived.conversion_rate),
+        cost_per_conversion: calculateChange(previousDerived.cost_per_conversion, currentDerived.cost_per_conversion)
       }
     };
   });
@@ -64,9 +78,35 @@ function calculateChange(previousValue, currentValue) {
 }
 
 /**
+ * 파생 지표 계산 (CTR, CPM, CPC, 전환율, 전환단가)
+ * @param {object} dayData - 일별 성과 데이터 {spend, impressions, clicks, conversions}
+ * @returns {object} 계산된 파생 지표들
+ */
+export function calculateDerivedMetrics(dayData) {
+  const spend = parseFloat(dayData.spend || 0);
+  const impressions = parseInt(dayData.impressions || 0);
+  const clicks = parseInt(dayData.clicks || 0);
+  const conversions = parseFloat(dayData.conversions || 0);
+
+  const ctr = impressions > 0 ? (clicks / impressions * 100) : 0;
+  const cpm = impressions > 0 ? (spend / impressions * 1000) : 0;
+  const cpc = clicks > 0 ? (spend / clicks) : 0;
+  const conversion_rate = clicks > 0 ? (conversions / clicks * 100) : 0;
+  const cost_per_conversion = conversions > 0 ? (spend / conversions) : 0;
+
+  return {
+    ctr: parseFloat(ctr.toFixed(2)),
+    cpm: parseFloat(cpm.toFixed(2)),
+    cpc: parseFloat(cpc.toFixed(2)),
+    conversion_rate: parseFloat(conversion_rate.toFixed(2)),
+    cost_per_conversion: parseFloat(cost_per_conversion.toFixed(2))
+  };
+}
+
+/**
  * 일별 추이를 텍스트로 포맷팅
  * @param {object} trends - calculateDailyTrends 결과의 trends 객체
- * @param {string} metric - 지표명 (spend, impressions, clicks, conversions)
+ * @param {string} metric - 지표명 (spend, impressions, clicks, conversions, ctr, cpm, cpc, conversion_rate, cost_per_conversion)
  * @returns {string} 포맷된 추이 텍스트
  */
 export function formatTrendText(trends, metric) {
@@ -80,7 +120,7 @@ export function formatTrendText(trends, metric) {
     return '변화없음';
   }
 
-  const direction = change > 0 ? '↗️' : '↘️';
+  const direction = change > 0 ? '▲' : '▼';
   const changeStr = change > 0 ? `+${Math.abs(change)}` : `-${Math.abs(change)}`;
   const percentStr = changePercent > 0 ? `+${changePercent}%` : `${changePercent}%`;
   

@@ -210,7 +210,7 @@ export function validateCommand(command) {
  */
 export function formatCommandSummary(command) {
   if (!command.isValid) {
-    return `❌ 명령어 오류: ${command.errors.join(', ')}`;
+    return `명령어 오류: ${command.errors.join(', ')}`;
   }
 
   const platformNames = {
@@ -224,7 +224,7 @@ export function formatCommandSummary(command) {
     ? command.startDate 
     : `${command.startDate} ~ ${command.endDate}`;
 
-  return `🔍 검색 조건\n- 키워드: "${command.keyword}"\n- 기간: ${dateRange}\n- 매체: ${platformList}`;
+  return `검색 조건\n- 키워드: "${command.keyword}"\n- 기간: ${dateRange}\n- 매체: ${platformList}`;
 }
 
 /**

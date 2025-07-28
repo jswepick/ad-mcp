@@ -54,6 +54,12 @@ export class UnifiedSearchService {
             command: {
               type: 'string',
               description: '검색 명령어 (예: "키워드:고병우 날짜:20250720-20250721 매체:구글,페이스북")'
+            },
+            output_format: {
+              type: 'string',
+              enum: ['text', 'html'],
+              default: 'text',
+              description: '출력 형식 - text: 텍스트 형식(기본값), html: HTML 테이블 형식'
             }
           },
           required: ['command']
@@ -85,7 +91,7 @@ export class UnifiedSearchService {
     try {
       switch (toolName) {
         case 'structured_campaign_search':
-          return await this.executeStructuredSearch(args.command);
+          return await this.executeStructuredSearch(args.command, args.output_format);
         case 'search_help':
           return this.getSearchHelp();
         case 'test_html_output':
@@ -102,7 +108,7 @@ export class UnifiedSearchService {
   /**
    * 정형화된 검색 실행
    */
-  async executeStructuredSearch(commandString) {
+  async executeStructuredSearch(commandString, outputFormat = 'text') {
     try {
       // 1단계: 명령어 파싱
       const command = parseUserCommand(commandString);
@@ -128,7 +134,7 @@ export class UnifiedSearchService {
       const detailedResults = await this.fetchAdLevelData(filteredResults, command);
       
       // 5단계: 결과 포맷팅
-      return this.formatSearchResults(detailedResults, command);
+      return this.formatSearchResults(detailedResults, command, outputFormat);
 
     } catch (error) {
       console.error('Structured search execution error:', error.message);
@@ -247,9 +253,381 @@ export class UnifiedSearchService {
   }
 
   /**
+   * CSS 스타일 생성
+   */
+  generateCssStyles() {
+    return `
+    <style>
+      body { 
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+        margin: 20px; 
+        background-color: #f8f9fa;
+        color: #333;
+      }
+      .container { 
+        max-width: 1200px; 
+        margin: 0 auto; 
+        background: white; 
+        padding: 30px; 
+        border-radius: 10px; 
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      }
+      h1 { 
+        color: #2c3e50; 
+        text-align: center; 
+        margin-bottom: 30px;
+        border-bottom: 3px solid #3498db;
+        padding-bottom: 15px;
+      }
+      h2 { 
+        color: #34495e; 
+        margin-top: 40px; 
+        margin-bottom: 20px;
+        padding: 10px 0;
+        border-left: 4px solid #3498db;
+        padding-left: 15px;
+      }
+      .search-info {
+        background: #ecf0f1;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 30px;
+      }
+      .search-info strong { color: #2c3e50; }
+      table { 
+        border-collapse: collapse; 
+        width: 100%; 
+        margin: 20px 0; 
+        background: white;
+      }
+      th, td { 
+        border: 1px solid #ddd; 
+        padding: 12px 8px; 
+        text-align: left; 
+        font-size: 14px;
+      }
+      th { 
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        font-weight: bold; 
+        text-align: center;
+      }
+      tr:nth-child(even) { background-color: #f8f9fa; }
+      tr:hover { background-color: #e3f2fd; }
+      .increase { 
+        color: #27ae60; 
+        font-weight: bold; 
+      }
+      .decrease { 
+        color: #e74c3c; 
+        font-weight: bold; 
+      }
+      .neutral { 
+        color: #7f8c8d; 
+      }
+      .platform-section {
+        margin: 30px 0;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .platform-header {
+        background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+        color: white;
+        padding: 15px 20px;
+        font-size: 18px;
+        font-weight: bold;
+      }
+      .campaign-name { 
+        font-weight: bold; 
+        color: #2c3e50; 
+      }
+      .summary-box {
+        background: linear-gradient(135deg, #a855f7 0%, #3b82f6 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 8px;
+        margin: 20px 0;
+        text-align: center;
+      }
+      .summary-box h3 { 
+        margin-top: 0; 
+        margin-bottom: 15px;
+      }
+      .metric-value {
+        font-size: 16px;
+        font-weight: bold;
+      }
+      .daily-trends {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 5px;
+        margin: 15px 0;
+      }
+      .no-data {
+        text-align: center;
+        color: #95a5a6;
+        font-style: italic;
+        padding: 40px;
+      }
+    </style>`;
+  }
+
+  /**
+   * 매체별 캠페인 테이블 HTML 생성
+   */
+  formatCampaignTableHtml(campaigns, ads, platform) {
+    if (campaigns.length === 0) {
+      return '<p class="no-data">매칭되는 캠페인이 없습니다.</p>';
+    }
+
+    const campaignGroups = this.groupAdsByCampaign(campaigns, ads);
+    let html = '';
+
+    campaignGroups.forEach(({ campaign, campaignAds }) => {
+      html += `
+      <h3 class="campaign-name">📋 ${campaign.campaign_name || campaign.name}</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>광고명</th>
+            <th>광고비</th>
+            <th>노출수</th>
+            <th>클릭수</th>
+            <th>CTR</th>
+            <th>CPM</th>
+            <th>CPC</th>
+            <th>전환수</th>
+            <th>전환율</th>
+            <th>전환단가</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+      if (campaignAds.length === 0) {
+        html += '<tr><td colspan="10" class="no-data">광고 데이터가 없습니다.</td></tr>';
+      } else {
+        campaignAds.forEach(ad => {
+          const spend = parseFloat(ad.spend || 0);
+          const impressions = parseInt(ad.impressions || 0);
+          const clicks = parseInt(ad.clicks || 0);
+          let conversions = parseInt(ad.conversions || 0);
+          const ctr = impressions > 0 ? (clicks / impressions * 100).toFixed(2) : '0.00';
+          const cpm = impressions > 0 ? (spend / impressions * 1000).toFixed(2) : '0.00';
+          const cpc = clicks > 0 ? (spend / clicks).toFixed(2) : '0.00';
+          let costPerConversion = parseFloat(ad.cost_per_conversion || ad.costPerConversion || 0);
+
+          // Facebook Actions 데이터 처리
+          if (conversions === 0 && ad.actions && Array.isArray(ad.actions)) {
+            const actions = ad.actions;
+            const leadActions = actions.find(action => action.action_type === 'lead')?.value || 0;
+            const purchaseActions = actions.find(action => action.action_type === 'purchase')?.value || 0;
+            const registrationActions = actions.find(action => action.action_type === 'complete_registration')?.value || 0;
+            conversions = parseInt(leadActions) + parseInt(purchaseActions) + parseInt(registrationActions);
+            
+            if (conversions > 0 && costPerConversion === 0) {
+              costPerConversion = spend / conversions;
+            }
+          }
+
+          const conversionRate = clicks > 0 ? (conversions / clicks * 100).toFixed(2) : '0.00';
+
+          html += `
+          <tr>
+            <td>${ad.ad_name || ad.name}</td>
+            <td class="metric-value">₩${spend.toLocaleString()}</td>
+            <td class="metric-value">${impressions.toLocaleString()}</td>
+            <td class="metric-value">${clicks.toLocaleString()}</td>
+            <td class="metric-value">${ctr}%</td>
+            <td class="metric-value">₩${parseFloat(cpm).toLocaleString()}</td>
+            <td class="metric-value">₩${parseFloat(cpc).toLocaleString()}</td>
+            <td class="metric-value">${conversions > 0 ? conversions.toLocaleString() : '-'}</td>
+            <td class="metric-value">${conversions > 0 ? conversionRate + '%' : '-'}</td>
+            <td class="metric-value">${costPerConversion > 0 ? '₩' + costPerConversion.toLocaleString() : '-'}</td>
+          </tr>`;
+        });
+      }
+
+      html += '</tbody></table>';
+
+      // 일별 성과 추이 표시
+      if (campaignAds.length > 0 && campaignAds[0].dailyData && campaignAds[0].dailyData.length > 1) {
+        html += this.formatDailyTrendsHtml(campaignAds[0].dailyData);
+      }
+    });
+
+    return html;
+  }
+
+  /**
+   * 일별 성과 추이 HTML 생성
+   */
+  formatDailyTrendsHtml(dailyData) {
+    const trendsData = calculateDailyTrends(dailyData);
+    
+    let html = `
+    <div class="daily-trends">
+      <h4>📈 일별 성과 추이</h4>
+      <table>
+        <thead>
+          <tr>
+            <th>날짜</th>
+            <th>광고비</th>
+            <th>노출수</th>
+            <th>클릭수</th>
+            <th>CTR</th>
+            <th>CPM</th>
+            <th>CPC</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+    trendsData.forEach(dayData => {
+      const { derivedMetrics, trends } = dayData;
+      
+      const formatTrend = (metric) => {
+        const trend = trends[metric];
+        if (trend.change === 0) return '<span class="neutral">변화없음</span>';
+        const direction = trend.change > 0 ? '▲' : '▼';
+        const cssClass = trend.change > 0 ? 'increase' : 'decrease';
+        return `<span class="${cssClass}">${direction} ${Math.abs(trend.change).toLocaleString()} (${trend.changePercent}%)</span>`;
+      };
+
+      html += `
+      <tr>
+        <td>${dayData.date}</td>
+        <td>₩${parseFloat(dayData.spend).toLocaleString()}<br><small>${formatTrend('spend')}</small></td>
+        <td>${parseInt(dayData.impressions).toLocaleString()}<br><small>${formatTrend('impressions')}</small></td>
+        <td>${parseInt(dayData.clicks).toLocaleString()}<br><small>${formatTrend('clicks')}</small></td>
+        <td>${derivedMetrics.ctr}%<br><small>${formatTrend('ctr')}</small></td>
+        <td>₩${derivedMetrics.cpm.toLocaleString()}<br><small>${formatTrend('cpm')}</small></td>
+        <td>₩${derivedMetrics.cpc.toLocaleString()}<br><small>${formatTrend('cpc')}</small></td>
+      </tr>`;
+    });
+
+    html += '</tbody></table></div>';
+    return html;
+  }
+
+  /**
+   * HTML 리포트 생성
+   */
+  generateHtmlReport(detailedResults, command) {
+    const summary = formatCommandSummary(command);
+    const platformNames = {
+      facebook: 'Facebook Ads',
+      google: 'Google Ads',  
+      tiktok: 'TikTok Ads'
+    };
+
+    let totalCampaigns = 0;
+    let totalAds = 0;
+    let totalSpend = 0;
+    let totalImpressions = 0;
+    let totalClicks = 0;
+
+    let bodyHtml = '';
+
+    // 매체별 결과 처리
+    Object.entries(detailedResults).forEach(([platform, { campaigns, ads, error }]) => {
+      const platformName = platformNames[platform] || platform;
+      
+      bodyHtml += `
+      <div class="platform-section">
+        <div class="platform-header">
+          ${platformName} ${error ? '- 오류 발생' : `(${campaigns.length}개 캠페인, ${ads.length}개 광고)`}
+        </div>
+        <div style="padding: 20px;">`;
+
+      if (error) {
+        bodyHtml += `<p style="color: #e74c3c; font-weight: bold;">❌ ${error}</p>`;
+      } else if (campaigns.length === 0) {
+        bodyHtml += '<p class="no-data">매칭되는 캠페인이 없습니다.</p>';
+      } else {
+        bodyHtml += this.formatCampaignTableHtml(campaigns, ads, platform);
+        
+        // 집계 업데이트
+        totalCampaigns += campaigns.length;
+        totalAds += ads.length;
+        ads.forEach(ad => {
+          totalSpend += parseFloat(ad.spend || 0);
+          totalImpressions += parseInt(ad.impressions || 0);
+          totalClicks += parseInt(ad.clicks || 0);
+        });
+      }
+
+      bodyHtml += '</div></div>';
+    });
+
+    // 전체 요약
+    const overallCTR = totalImpressions > 0 ? (totalClicks / totalImpressions * 100).toFixed(2) : '0.00';
+    
+    const summaryHtml = totalCampaigns > 0 ? `
+    <div class="summary-box">
+      <h3>📊 전체 요약</h3>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+        <div>
+          <div>총 캠페인: <span class="metric-value">${totalCampaigns}개</span></div>
+          <div>총 광고: <span class="metric-value">${totalAds}개</span></div>
+        </div>
+        <div>
+          <div>총 광고비: <span class="metric-value">₩${totalSpend.toLocaleString()}</span></div>
+          <div>총 노출수: <span class="metric-value">${totalImpressions.toLocaleString()}</span></div>
+        </div>
+        <div>
+          <div>총 클릭수: <span class="metric-value">${totalClicks.toLocaleString()}</span></div>
+          <div>전체 CTR: <span class="metric-value">${overallCTR}%</span></div>
+        </div>
+      </div>
+    </div>` : '<p class="no-data">조건에 맞는 캠페인을 찾을 수 없습니다.</p>';
+
+    const htmlContent = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>캠페인 성과 리포트</title>
+  ${this.generateCssStyles()}
+</head>
+<body>
+  <div class="container">
+    <h1>🎯 캠페인 성과 리포트</h1>
+    
+    <div class="search-info">
+      <strong>검색 조건:</strong><br>
+      ${summary.replace(/\n/g, '<br>')}
+    </div>
+
+    ${bodyHtml}
+    
+    ${summaryHtml}
+    
+    <div style="text-align: center; margin-top: 30px; color: #7f8c8d; font-size: 12px;">
+      리포트 생성 시간: ${new Date().toLocaleString('ko-KR')}
+    </div>
+  </div>
+</body>
+</html>`;
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: htmlContent
+        }
+      ]
+    };
+  }
+
+  /**
    * 검색 결과 포맷팅
    */
-  formatSearchResults(detailedResults, command) {
+  formatSearchResults(detailedResults, command, outputFormat = 'text') {
+    if (outputFormat === 'html') {
+      return this.generateHtmlReport(detailedResults, command);
+    }
+
+    // 기존 텍스트 출력 로직
     const summary = formatCommandSummary(command);
     let result = `${summary}\n\n`;
 

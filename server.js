@@ -95,7 +95,7 @@ class MultiPlatformAdsServer {
    */
   getServiceByToolName(toolName) {
     // 통합 검색 도구들 먼저 확인
-    if (toolName.startsWith('structured_campaign_search') || toolName === 'search_help') {
+    if (toolName.startsWith('structured_campaign_search') || toolName === 'search_help' || toolName === 'test_html_output') {
       return this.unifiedSearchService;
     }
     

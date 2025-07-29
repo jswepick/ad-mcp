@@ -1,7 +1,7 @@
 import axios from 'axios';
 import 'dotenv/config';
 import { getDateRange, getPeriodText } from '../utils/date-utils.js';
-import { formatNumber, formatCurrency, formatPercent, parseActions, standardizeMetrics, formatPerformanceSummary, CONVERSION_ACTIONS } from '../utils/format-utils.js';
+import { formatNumber, formatCurrency, formatPercent, parseActions, standardizeMetrics, formatPerformanceSummary, CONVERSION_ACTIONS, CUSTOM_CONVERSION_PATTERNS } from '../utils/format-utils.js';
 
 const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
 const AD_ACCOUNT_ID = process.env.META_AD_ACCOUNT_ID;

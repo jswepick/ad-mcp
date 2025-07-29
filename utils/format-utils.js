@@ -41,6 +41,16 @@ export const CONVERSION_ACTIONS = [
 ];
 
 /**
+ * 커스텀 전환 액션 타입 패턴들 (정규식 매칭용)
+ */
+export const CUSTOM_CONVERSION_PATTERNS = [
+  /^offsite_conversion\.fb_pixel_custom\./,  // Facebook Pixel 커스텀 이벤트
+  /^app_custom_event\./,                     // 앱 커스텀 이벤트
+  /^onsite_conversion\./,                    // 온사이트 전환
+  /^custom_/                                 // 기타 커스텀 액션
+];
+
+/**
  * Facebook Actions 데이터 파싱 (개선된 버전)
  * @param {Array} actions - Facebook actions 배열
  * @returns {Object} 파싱된 액션 데이터
@@ -90,10 +100,21 @@ export function parseActions(actions) {
     total_actions: Object.values(actionMap).reduce((sum, val) => sum + val, 0)
   };
   
-  // 전환 액션들의 합계 계산
+  // 전환 액션들의 합계 계산 (표준 + 커스텀)
   parsedActions.total_conversions = CONVERSION_ACTIONS.reduce((sum, actionType) => {
     return sum + (parsedActions[actionType] || 0);
   }, 0);
+  
+  // 커스텀 전환 액션들도 포함
+  Object.keys(actionMap).forEach(actionType => {
+    const isCustomConversion = CUSTOM_CONVERSION_PATTERNS.some(pattern => 
+      pattern.test(actionType)
+    );
+    
+    if (isCustomConversion) {
+      parsedActions.total_conversions += actionMap[actionType] || 0;
+    }
+  });
   
   return parsedActions;
 }

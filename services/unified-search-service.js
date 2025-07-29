@@ -424,7 +424,7 @@ export class UnifiedSearchService {
         margin: 20px 0;
         border: 1px solid #e9ecef;
       }
-      .date-filter, .campaign-filter, .campaign-dropdown {
+      .date-filter, .campaign-filter, .campaign-dropdown, .platform-filter {
         display: inline-block;
         margin-right: 20px;
         margin-bottom: 10px;
@@ -877,7 +877,7 @@ export class UnifiedSearchService {
       const platformName = platformNames[platform] || platform;
       
       bodyHtml += `
-      <div class="platform-section">
+      <div class="platform-section" data-platform="${platform}">
         <div class="platform-header">
           ${platformName} ${error ? '- 오류 발생' : `(${campaigns.length}개 캠페인, ${ads.length}개 광고)`}
         </div>
@@ -967,11 +967,22 @@ export class UnifiedSearchService {
         </select>
       </div>
       
+      <div class="platform-filter">
+        <label for="platformSelect">🏢 매체 선택:</label>
+        <select id="platformSelect" onchange="applyFilters()">
+          <option value="all">전체 매체</option>
+          <option value="facebook">Facebook</option>
+          <option value="google">Google</option>
+          <option value="tiktok">TikTok</option>
+        </select>
+      </div>
+      
       <button onclick="resetAllFilters()" style="margin-left: 10px; padding: 5px 10px;">🔄 초기화</button>
       
       <div style="margin-top: 10px;">
         <span id="selectedDateInfo" style="color: #666;"></span>
         <span id="selectedCampaignInfo" style="margin-left: 10px; color: #666;"></span>
+        <span id="selectedPlatformInfo" style="margin-left: 10px; color: #666;"></span>
       </div>
     </div>
 
@@ -1558,12 +1569,14 @@ export class UnifiedSearchService {
       const selectedDate = document.getElementById('dateFilter').value;
       const searchTerm = document.getElementById('campaignSearch').value.toLowerCase().trim();
       const selectedCampaign = document.getElementById('campaignSelect').value;
+      const selectedPlatform = document.getElementById('platformSelect').value;
       
       const rows = document.querySelectorAll('[data-date]');
       const campaignSections = document.querySelectorAll('.campaign-section');
+      const platformSections = document.querySelectorAll('.platform-section');
       
       // 정보 표시 업데이트
-      updateFilterInfo(selectedDate, searchTerm, selectedCampaign);
+      updateFilterInfo(selectedDate, searchTerm, selectedCampaign, selectedPlatform);
       
       campaignSections.forEach(section => {
         let showSection = true;
@@ -1595,6 +1608,16 @@ export class UnifiedSearchService {
         }
         
         section.style.display = showSection ? '' : 'none';
+      });
+      
+      // 플랫폼 섹션 필터링
+      platformSections.forEach(section => {
+        if (selectedPlatform === 'all') {
+          section.style.display = '';
+        } else {
+          const sectionPlatform = section.getAttribute('data-platform');
+          section.style.display = sectionPlatform === selectedPlatform ? '' : 'none';
+        }
       });
       
       // 일별 데이터 행 필터링 (캠페인 일별 + 광고별 일별)
@@ -1633,9 +1656,10 @@ export class UnifiedSearchService {
       updateSummary(selectedDate);
     }
     
-    function updateFilterInfo(selectedDate, searchTerm, selectedCampaign) {
+    function updateFilterInfo(selectedDate, searchTerm, selectedCampaign, selectedPlatform) {
       const dateInfo = document.getElementById('selectedDateInfo');
       const campaignInfo = document.getElementById('selectedCampaignInfo');
+      const platformInfo = document.getElementById('selectedPlatformInfo');
       
       if (selectedDate === 'all') {
         dateInfo.textContent = '';
@@ -1653,12 +1677,24 @@ export class UnifiedSearchService {
           selectedCampaign.substring(0, 30) + '...' : selectedCampaign);
       }
       campaignInfo.textContent = campaignText;
+      
+      if (selectedPlatform === 'all') {
+        platformInfo.textContent = '';
+      } else {
+        const platformNames = {
+          'facebook': 'Facebook Ads',
+          'google': 'Google Ads', 
+          'tiktok': 'TikTok Ads'
+        };
+        platformInfo.textContent = '🏢 ' + (platformNames[selectedPlatform] || selectedPlatform);
+      }
     }
     
     function resetAllFilters() {
       document.getElementById('dateFilter').value = 'all';
       document.getElementById('campaignSearch').value = '';
       document.getElementById('campaignSelect').value = 'all';
+      document.getElementById('platformSelect').value = 'all';
       applyFilters();
     }
     

@@ -78,6 +78,29 @@ export class TikTokAdsService {
         }
       },
       {
+        name: 'tiktok_get_ad_level_performance',
+        description: '특정 캠페인들의 광고별 상세 성과를 조회합니다',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            campaign_ids: {
+              type: 'array',
+              items: { type: 'string' },
+              description: '캠페인 ID 배열'
+            },
+            start_date: {
+              type: 'string',
+              description: '시작일 (YYYY-MM-DD 형식)'
+            },
+            end_date: {
+              type: 'string',
+              description: '종료일 (YYYY-MM-DD 형식)'
+            }
+          },
+          required: ['campaign_ids', 'start_date', 'end_date']
+        }
+      },
+      {
         name: 'tiktok_test_connection',
         description: 'TikTok Ads API 연결 상태를 테스트합니다',
         inputSchema: {

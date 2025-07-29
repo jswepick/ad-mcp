@@ -66,9 +66,13 @@ class MultiPlatformAdsServer {
     this.unifiedSearchService = new UnifiedSearchService(this.services);
     
     console.error('서비스 초기화 완료');
+    console.error(`🌍 실행 환경: ${process.env.RENDER_EXTERNAL_URL ? 'Render 프로덕션' : '로컬 개발'}`);
     
-    // 임시 폴더 생성
-    this.tempDir = path.join(process.cwd(), 'temp');
+    // 임시 폴더 생성 (환경별 분기)
+    this.tempDir = process.env.RENDER_EXTERNAL_URL 
+      ? '/tmp/mcp-html-reports'  // Render 프로덕션 환경
+      : path.join(process.cwd(), 'temp');  // 로컬 개발 환경
+    
     if (!fs.existsSync(this.tempDir)) {
       fs.mkdirSync(this.tempDir, { recursive: true });
       console.error('📁 임시 폴더 생성됨:', this.tempDir);
@@ -90,7 +94,10 @@ class MultiPlatformAdsServer {
       
       const files = fs.readdirSync(this.tempDir);
       const now = Date.now();
-      const twentyFourHours = 24 * 60 * 60 * 1000; // 24시간
+      // Render 환경에서는 더 짧은 수명 사용
+      const fileLifetime = process.env.RENDER_EXTERNAL_URL 
+        ? 30 * 60 * 1000  // 30분 (Render)
+        : 24 * 60 * 60 * 1000;  // 24시간 (로컬)
       
       let deletedCount = 0;
       
@@ -98,7 +105,7 @@ class MultiPlatformAdsServer {
         const filePath = path.join(this.tempDir, filename);
         const stats = fs.statSync(filePath);
         
-        if (now - stats.mtime.getTime() > twentyFourHours) {
+        if (now - stats.mtime.getTime() > fileLifetime) {
           fs.unlinkSync(filePath);
           deletedCount++;
           console.error(`🗑️  오래된 임시 파일 삭제: ${filename}`);

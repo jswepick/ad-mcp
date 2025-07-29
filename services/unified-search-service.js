@@ -1252,8 +1252,16 @@ export class UnifiedSearchService {
       const defaultName = `campaign-report-${keyword}-${dateRange}-${timestamp}.html`;
       const fileName = filename || defaultName;
       
-      // 5. 임시 폴더에 저장
-      const tempDir = path.join(process.cwd(), 'temp');
+      // 5. 임시 폴더에 저장 (환경별 분기)
+      const tempDir = process.env.RENDER_EXTERNAL_URL 
+        ? '/tmp/mcp-html-reports'  // Render 프로덕션 환경
+        : path.join(process.cwd(), 'temp');  // 로컬 개발 환경
+      
+      // 디렉토리가 없으면 생성
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+      
       const filePath = path.join(tempDir, fileName);
       fs.writeFileSync(filePath, htmlContent, 'utf8');
       
@@ -1262,12 +1270,16 @@ export class UnifiedSearchService {
       const totalAds = Object.values(detailedResults).reduce((sum, {ads}) => sum + (ads?.length || 0), 0);
       const fileSizeKB = Math.round(htmlContent.length / 1024);
       
-      // 7. 다운로드 URL 생성
-      const serverPort = process.env.PORT || 3000;
-      const downloadUrl = `http://localhost:${serverPort}/download/${fileName}`;
+      // 7. 다운로드 URL 생성 (환경별 분기)
+      const baseUrl = process.env.RENDER_EXTERNAL_URL 
+        ? 'https://mcp-ads.onrender.com'  // Render 프로덕션 환경
+        : `http://localhost:${process.env.PORT || 3000}`;  // 로컬 개발 환경
+      const downloadUrl = `${baseUrl}/download/${fileName}`;
       
       console.error(`✅ HTML 파일 생성 완료: ${filePath}`);
       console.error(`🔗 다운로드 URL: ${downloadUrl}`);
+      console.error(`🌍 실행 환경: ${process.env.RENDER_EXTERNAL_URL ? 'Render 프로덕션' : '로컬 개발'}`);
+      console.error(`📁 임시 디렉토리: ${tempDir}`);
       
       return {
         content: [
@@ -1288,7 +1300,7 @@ export class UnifiedSearchService {
 📁 **다운로드 링크**: ${downloadUrl}
 
 💡 위 링크를 클릭하거나 브라우저에 붙여넣기하여 HTML 파일을 다운로드하세요.
-⏰ 링크는 24시간 후 만료됩니다.`
+⏰ 링크는 ${process.env.RENDER_EXTERNAL_URL ? '30분' : '24시간'} 후 만료됩니다.`
           }
         ]
       };

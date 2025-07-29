@@ -420,9 +420,131 @@ class MultiPlatformAdsServer {
         endpoints: {
           health: '/health',
           sse: '/sse',
-          message: '/message'
+          message: '/message',
+          generate_html: '/api/generate-html',
+          download: '/download/:filename'
         }
       });
+    });
+
+    // HTML 생성 API 엔드포인트 (모든 MCP 사용자용)
+    app.post('/api/generate-html', async (req, res) => {
+      try {
+        const { command, api_keys, filename } = req.body;
+        
+        // 입력 검증
+        if (!command || typeof command !== 'string') {
+          return res.status(400).json({ 
+            error: 'command 파라미터가 필요합니다' 
+          });
+        }
+        
+        if (command.length > 1000) {
+          return res.status(400).json({ 
+            error: 'command가 너무 깁니다 (최대 1000자)' 
+          });
+        }
+        
+        if (filename && (typeof filename !== 'string' || filename.length > 100)) {
+          return res.status(400).json({ 
+            error: 'filename이 올바르지 않습니다 (최대 100자)' 
+          });
+        }
+        
+        // 파일명 보안 검증
+        if (filename && !/^[a-zA-Z0-9ㄱ-ㅎㅏ-ㅣ가-힣._-]+\.html$/.test(filename)) {
+          return res.status(400).json({ 
+            error: 'filename에 허용되지 않은 문자가 포함되어 있습니다' 
+          });
+        }
+        
+        console.error(`📊 HTML 생성 API 요청: ${command}`);
+        
+        // API 키 보안 처리 및 임시 환경변수 설정
+        const originalEnv = {};
+        if (api_keys && typeof api_keys === 'object') {
+          if (api_keys.facebook && typeof api_keys.facebook === 'object') {
+            const { access_token, ad_account_id } = api_keys.facebook;
+            if (access_token && ad_account_id) {
+              originalEnv.META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
+              originalEnv.META_AD_ACCOUNT_ID = process.env.META_AD_ACCOUNT_ID;
+              process.env.META_ACCESS_TOKEN = String(access_token).substring(0, 500);
+              process.env.META_AD_ACCOUNT_ID = String(ad_account_id).substring(0, 100);
+            }
+          }
+          if (api_keys.google && typeof api_keys.google === 'object') {
+            const { customer_id } = api_keys.google;
+            if (customer_id) {
+              originalEnv.GOOGLE_ADS_CUSTOMER_ID = process.env.GOOGLE_ADS_CUSTOMER_ID;
+              process.env.GOOGLE_ADS_CUSTOMER_ID = String(customer_id).substring(0, 50);
+            }
+          }
+          if (api_keys.tiktok && typeof api_keys.tiktok === 'object') {
+            const { access_token, advertiser_id } = api_keys.tiktok;
+            if (access_token && advertiser_id) {
+              originalEnv.TIKTOK_ACCESS_TOKEN = process.env.TIKTOK_ACCESS_TOKEN;
+              originalEnv.TIKTOK_ADVERTISER_ID = process.env.TIKTOK_ADVERTISER_ID;
+              process.env.TIKTOK_ACCESS_TOKEN = String(access_token).substring(0, 500);
+              process.env.TIKTOK_ADVERTISER_ID = String(advertiser_id).substring(0, 100);
+            }
+          }
+        }
+        
+        try {
+          // HTML 생성 실행
+          const result = await this.unifiedSearchService.handleToolCall('generate_html_file', {
+            command,
+            filename
+          });
+          
+          // 환경변수 복원
+          Object.entries(originalEnv).forEach(([key, value]) => {
+            if (value !== undefined) {
+              process.env[key] = value;
+            } else {
+              delete process.env[key];
+            }
+          });
+          
+          if (result?.content?.[0]?.text) {
+            const responseText = result.content[0].text;
+            
+            // 다운로드 URL 추출 및 변환
+            const localUrlMatch = responseText.match(/http:\/\/localhost:\d+\/download\/([^\\s]+)/);
+            if (localUrlMatch) {
+              const filename = localUrlMatch[1];
+              const renderUrl = `${process.env.RENDER_EXTERNAL_URL || 'https://mcp-ads.onrender.com'}/download/${filename}`;
+              
+              return res.json({
+                success: true,
+                download_url: renderUrl,
+                filename: filename,
+                message: '✅ HTML 파일이 생성되었습니다. 아래 링크를 클릭하여 다운로드하세요.'
+              });
+            } else {
+              throw new Error('다운로드 URL을 생성할 수 없습니다');
+            }
+          } else {
+            throw new Error('HTML 생성 결과가 올바르지 않습니다');
+          }
+        } catch (genError) {
+          // 환경변수 복원
+          Object.entries(originalEnv).forEach(([key, value]) => {
+            if (value !== undefined) {
+              process.env[key] = value;
+            } else {
+              delete process.env[key];
+            }
+          });
+          throw genError;
+        }
+        
+      } catch (error) {
+        console.error(`❌ HTML 생성 API 오류: ${error.message}`);
+        res.status(500).json({ 
+          error: `HTML 생성 실패: ${error.message}` 
+        });
+      }
     });
 
     // HTML 파일 다운로드 엔드포인트

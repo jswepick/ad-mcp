@@ -1229,6 +1229,12 @@ export class UnifiedSearchService {
     try {
       console.error(`🎯 HTML 파일 생성 시작: ${commandString}`);
       
+      // 로컬 MCP 모드에서는 Render API 호출
+      if (!process.env.RENDER_EXTERNAL_URL) {
+        return await this.generateHtmlViaRenderAPI(commandString, filename);
+      }
+
+      // Render 서버에서 직접 실행하는 경우 (기존 로직)
       // 1. 명령어 파싱
       const command = parseUserCommand(commandString);
       
@@ -1252,10 +1258,8 @@ export class UnifiedSearchService {
       const defaultName = `campaign-report-${keyword}-${dateRange}-${timestamp}.html`;
       const fileName = filename || defaultName;
       
-      // 5. 임시 폴더에 저장 (환경별 분기)
-      const tempDir = process.env.RENDER_EXTERNAL_URL 
-        ? '/tmp/mcp-html-reports'  // Render 프로덕션 환경
-        : path.join(process.cwd(), 'temp');  // 로컬 개발 환경
+      // 5. 임시 폴더에 저장
+      const tempDir = '/tmp/mcp-html-reports';
       
       // 디렉토리가 없으면 생성
       if (!fs.existsSync(tempDir)) {
@@ -1270,16 +1274,11 @@ export class UnifiedSearchService {
       const totalAds = Object.values(detailedResults).reduce((sum, {ads}) => sum + (ads?.length || 0), 0);
       const fileSizeKB = Math.round(htmlContent.length / 1024);
       
-      // 7. 다운로드 URL 생성 (환경별 분기)
-      const baseUrl = process.env.RENDER_EXTERNAL_URL 
-        ? 'https://mcp-ads.onrender.com'  // Render 프로덕션 환경
-        : `http://localhost:${process.env.PORT || 3000}`;  // 로컬 개발 환경
-      const downloadUrl = `${baseUrl}/download/${fileName}`;
+      // 7. 다운로드 URL 생성
+      const downloadUrl = `https://mcp-ads.onrender.com/download/${fileName}`;
       
       console.error(`✅ HTML 파일 생성 완료: ${filePath}`);
       console.error(`🔗 다운로드 URL: ${downloadUrl}`);
-      console.error(`🌍 실행 환경: ${process.env.RENDER_EXTERNAL_URL ? 'Render 프로덕션' : '로컬 개발'}`);
-      console.error(`📁 임시 디렉토리: ${tempDir}`);
       
       return {
         content: [
@@ -1300,7 +1299,7 @@ export class UnifiedSearchService {
 📁 **다운로드 링크**: ${downloadUrl}
 
 💡 위 링크를 클릭하거나 브라우저에 붙여넣기하여 HTML 파일을 다운로드하세요.
-⏰ 링크는 ${process.env.RENDER_EXTERNAL_URL ? '30분' : '24시간'} 후 만료됩니다.`
+⏰ 링크는 30분 후 만료됩니다.`
           }
         ]
       };
@@ -1308,6 +1307,84 @@ export class UnifiedSearchService {
     } catch (error) {
       console.error('HTML 파일 생성 실패:', error.message);
       return this.createErrorResponse(`HTML 파일 생성 실패: ${error.message}`);
+    }
+  }
+
+  /**
+   * Render API를 통해 HTML 파일 생성 (로컬 MCP용)
+   */
+  async generateHtmlViaRenderAPI(commandString, filename) {
+    try {
+      console.error('🌐 Render API를 통해 HTML 생성 중...');
+      
+      // API 키 수집
+      const apiKeys = {};
+      
+      if (process.env.META_ACCESS_TOKEN && process.env.META_AD_ACCOUNT_ID) {
+        apiKeys.facebook = {
+          access_token: process.env.META_ACCESS_TOKEN,
+          ad_account_id: process.env.META_AD_ACCOUNT_ID
+        };
+      }
+      
+      if (process.env.GOOGLE_ADS_CUSTOMER_ID) {
+        apiKeys.google = {
+          customer_id: process.env.GOOGLE_ADS_CUSTOMER_ID
+        };
+      }
+      
+      if (process.env.TIKTOK_ACCESS_TOKEN && process.env.TIKTOK_ADVERTISER_ID) {
+        apiKeys.tiktok = {
+          access_token: process.env.TIKTOK_ACCESS_TOKEN,
+          advertiser_id: process.env.TIKTOK_ADVERTISER_ID
+        };
+      }
+
+      // Render API 호출
+      const response = await fetch('https://mcp-ads.onrender.com/api/generate-html', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          command: commandString,
+          api_keys: apiKeys,
+          filename: filename
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        console.error(`✅ Render API 호출 성공: ${result.download_url}`);
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `✅ HTML 리포트가 생성되었습니다!
+
+📁 **다운로드 링크**: ${result.download_url}
+
+💡 위 링크를 클릭하거나 브라우저에 붙여넣기하여 HTML 파일을 다운로드하세요.
+⏰ 링크는 30분 후 만료됩니다.
+
+📱 모든 MCP 사용자가 중앙 서버에서 생성된 파일에 접근할 수 있습니다.`
+            }
+          ]
+        };
+      } else {
+        throw new Error(result.error || '알 수 없는 오류');
+      }
+
+    } catch (error) {
+      console.error('Render API 호출 실패:', error.message);
+      return this.createErrorResponse(`중앙 서버 HTML 생성 실패: ${error.message}`);
     }
   }
 

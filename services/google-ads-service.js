@@ -1,4 +1,5 @@
 import axios from 'axios';
+import 'dotenv/config';
 import { getGoogleDateRange, getPeriodText } from '../utils/date-utils.js';
 import { formatNumber, formatCurrency, formatPercent, standardizeMetrics, formatPerformanceSummary } from '../utils/format-utils.js';
 
@@ -616,7 +617,7 @@ export class GoogleAdsService {
       const accessToken = await this.getAccessToken();
       
       // 2단계: Customer ID 정보 확인
-      const customerId = CUSTOMER_ID.replace(/-/g, '');
+      const customerId = GOOGLE_ADS_CUSTOMER_ID.replace(/-/g, '');
       
       // 3단계: 간단한 API 호출 테스트 (Customer 정보 조회)
       const customerUrl = `${BASE_URL}/customers/${customerId}`;
@@ -625,7 +626,7 @@ export class GoogleAdsService {
       const response = await axios.get(customerUrl, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
-          'developer-token': DEVELOPER_TOKEN,
+          'developer-token': GOOGLE_ADS_DEVELOPER_TOKEN,
           'Content-Type': 'application/json'
         }
       });
@@ -637,7 +638,7 @@ export class GoogleAdsService {
             type: 'text',
             text: `✅ **Google Ads API 연결 테스트 성공**\n\n` +
                   `🔑 **OAuth**: 토큰 갱신 성공\n` +
-                  `🏢 **Customer ID**: ${CUSTOMER_ID} (${customerId})\n` +
+                  `🏢 **Customer ID**: ${GOOGLE_ADS_CUSTOMER_ID} (${customerId})\n` +
                   `🔧 **Developer Token**: 설정됨\n` +
                   `📊 **API 버전**: ${GOOGLE_ADS_API_VERSION}\n` +
                   `🌐 **Base URL**: ${BASE_URL}\n\n` +
@@ -658,7 +659,7 @@ export class GoogleAdsService {
       } else if (error.response?.status === 403) {
         diagnosis = `\n🔍 **진단**: 권한 문제\n- Developer Token이 승인되지 않았을 수 있습니다\n- Customer ID에 대한 접근 권한이 없을 수 있습니다`;
       } else if (error.response?.status === 404) {
-        diagnosis = `\n🔍 **진단**: Customer ID 문제\n- Customer ID '${CUSTOMER_ID}'가 존재하지 않거나 잘못되었습니다\n- MCC(매니저 계정) ID를 사용했을 수도 있습니다`;
+        diagnosis = `\n🔍 **진단**: Customer ID 문제\n- Customer ID '${GOOGLE_ADS_CUSTOMER_ID}'가 존재하지 않거나 잘못되었습니다\n- MCC(매니저 계정) ID를 사용했을 수도 있습니다`;
       }
       
       return {
@@ -669,11 +670,11 @@ export class GoogleAdsService {
                   `**오류**: ${error.message}\n` +
                   `**상태 코드**: ${error.response?.status || 'N/A'}\n` +
                   `**설정 정보**:\n` +
-                  `- Customer ID: ${CUSTOMER_ID}\n` +
+                  `- Customer ID: ${GOOGLE_ADS_CUSTOMER_ID}\n` +
                   `- API 버전: ${GOOGLE_ADS_API_VERSION}\n` +
                   `- Developer Token: ${DEVELOPER_TOKEN ? '설정됨' : '❌ 없음'}\n` +
-                  `- Client ID: ${CLIENT_ID ? '설정됨' : '❌ 없음'}\n` +
-                  `- Refresh Token: ${REFRESH_TOKEN ? '설정됨' : '❌ 없음'}` +
+                  `- Client ID: ${GOOGLE_ADS_CLIENT_ID ? '설정됨' : '❌ 없음'}\n` +
+                  `- Refresh Token: ${GOOGLE_ADS_REFRESH_TOKEN ? '설정됨' : '❌ 없음'}` +
                   diagnosis
           }
         ]

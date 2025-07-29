@@ -97,10 +97,10 @@ export function parseUserCommand(userInput) {
   };
 
   try {
-    // 키워드 추출
-    const keywordMatch = userInput.match(/키워드:([^\s]+)/);
+    // 키워드 추출 (빈 키워드도 허용)
+    const keywordMatch = userInput.match(/키워드:([^\s]*)/);
     if (keywordMatch) {
-      command.keyword = keywordMatch[1];
+      command.keyword = keywordMatch[1] || ''; // 빈 문자열도 허용
     } else {
       command.errors.push('키워드가 지정되지 않았습니다');
       command.isValid = false;
@@ -200,7 +200,7 @@ export function parseUserCommand(userInput) {
  * @returns {boolean} 유효성 여부
  */
 export function validateCommand(command) {
-  return command.isValid && command.keyword && command.startDate && command.endDate && command.platforms.length > 0;
+  return command.isValid && command.keyword !== undefined && command.startDate && command.endDate && command.platforms.length > 0;
 }
 
 /**

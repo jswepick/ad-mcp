@@ -1,4 +1,5 @@
 import axios from 'axios';
+import 'dotenv/config';
 import { getTikTokDateRange, getPeriodText } from '../utils/date-utils.js';
 import { formatNumber, formatCurrency, formatPercent, standardizeMetrics, formatPerformanceSummary } from '../utils/format-utils.js';
 
@@ -27,7 +28,7 @@ const API_ENDPOINTS = {
 export class TikTokAdsService {
   constructor() {
     this.platform = 'tiktok';
-    this.accessToken = ACCESS_TOKEN;
+    this.accessToken = ACCESS_TOKEN; // 실시간으로 환경변수 읽기
   }
 
   /**
@@ -590,6 +591,11 @@ export class TikTokAdsService {
     try {
       console.error(`TikTok API Request: ${method} ${url}`);
       console.error('Params:', JSON.stringify(params, null, 2));
+      console.error('Access Token Debug:', {
+        'this.accessToken': this.accessToken ? 'SET' : 'NOT SET',
+        'ACCESS_TOKEN': ACCESS_TOKEN ? 'SET' : 'NOT SET',
+        'process.env.TIKTOK_ACCESS_TOKEN': process.env.TIKTOK_ACCESS_TOKEN ? 'SET' : 'NOT SET'
+      });
 
       const config = {
         method,

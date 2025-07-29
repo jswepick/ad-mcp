@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-
+import 'dotenv/config';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -11,8 +11,8 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import express from 'express';
 import cors from 'cors';
-import 'dotenv/config';
-
+import fs from 'fs';
+import path from 'path';
 // 서비스 임포트
 import { FacebookAdsService } from './services/facebook-ads-service.js';
 import { GoogleAdsService } from './services/google-ads-service.js';
@@ -67,8 +67,51 @@ class MultiPlatformAdsServer {
     
     console.error('서비스 초기화 완료');
     
+    // 임시 폴더 생성
+    this.tempDir = path.join(process.cwd(), 'temp');
+    if (!fs.existsSync(this.tempDir)) {
+      fs.mkdirSync(this.tempDir, { recursive: true });
+      console.error('📁 임시 폴더 생성됨:', this.tempDir);
+    }
+    
+    // 오래된 임시 파일 정리 (24시간 이상 된 파일 삭제)
+    this.cleanupOldTempFiles();
+    
     this.setupToolHandlers();
     this.server.onerror = (error) => console.error('[MCP Error]', error);
+  }
+
+  /**
+   * 오래된 임시 파일 정리 (24시간 이상 된 파일 삭제)
+   */
+  cleanupOldTempFiles() {
+    try {
+      if (!fs.existsSync(this.tempDir)) return;
+      
+      const files = fs.readdirSync(this.tempDir);
+      const now = Date.now();
+      const twentyFourHours = 24 * 60 * 60 * 1000; // 24시간
+      
+      let deletedCount = 0;
+      
+      files.forEach(filename => {
+        const filePath = path.join(this.tempDir, filename);
+        const stats = fs.statSync(filePath);
+        
+        if (now - stats.mtime.getTime() > twentyFourHours) {
+          fs.unlinkSync(filePath);
+          deletedCount++;
+          console.error(`🗑️  오래된 임시 파일 삭제: ${filename}`);
+        }
+      });
+      
+      if (deletedCount > 0) {
+        console.error(`🧹 임시 파일 정리 완료: ${deletedCount}개 파일 삭제됨`);
+      }
+      
+    } catch (error) {
+      console.error(`❌ 임시 파일 정리 실패: ${error.message}`);
+    }
   }
 
   /**
@@ -95,7 +138,7 @@ class MultiPlatformAdsServer {
    */
   getServiceByToolName(toolName) {
     // 통합 검색 도구들 먼저 확인
-    if (toolName.startsWith('structured_campaign_search') || toolName === 'search_help' || toolName === 'test_html_output') {
+    if (toolName.startsWith('structured_campaign_search') || toolName === 'search_help' || toolName === 'test_html_output' || toolName === 'generate_html_file') {
       return this.unifiedSearchService;
     }
     
@@ -375,11 +418,71 @@ class MultiPlatformAdsServer {
       });
     });
 
+    // HTML 파일 다운로드 엔드포인트
+    app.get('/download/:filename', (req, res) => {
+      try {
+        const filename = req.params.filename;
+        const filePath = path.join(this.tempDir, filename);
+        
+        // 파일 존재 확인
+        if (!fs.existsSync(filePath)) {
+          return res.status(404).json({ 
+            error: '파일을 찾을 수 없습니다',
+            filename: filename 
+          });
+        }
+        
+        // 보안: 파일명이 temp 폴더 밖을 벗어나지 않도록 검증
+        const resolvedPath = path.resolve(filePath);
+        const tempDirResolved = path.resolve(this.tempDir);
+        if (!resolvedPath.startsWith(tempDirResolved)) {
+          return res.status(403).json({ 
+            error: '접근이 거부되었습니다' 
+          });
+        }
+        
+        console.error(`📁 파일 다운로드 요청: ${filename}`);
+        
+        // 파일 다운로드 제공
+        res.download(filePath, filename, (err) => {
+          if (err) {
+            console.error(`❌ 다운로드 실패: ${err.message}`);
+            if (!res.headersSent) {
+              res.status(500).json({ 
+                error: '다운로드 중 오류가 발생했습니다' 
+              });
+            }
+          } else {
+            console.error(`✅ 다운로드 완료: ${filename}`);
+            
+            // 다운로드 완료 후 파일 삭제 (5초 후)
+            setTimeout(() => {
+              try {
+                if (fs.existsSync(filePath)) {
+                  fs.unlinkSync(filePath);
+                  console.error(`🗑️  임시 파일 삭제됨: ${filename}`);
+                }
+              } catch (deleteError) {
+                console.error(`❌ 파일 삭제 실패: ${deleteError.message}`);
+              }
+            }, 5000);
+          }
+        });
+        
+      } catch (error) {
+        console.error(`❌ 다운로드 엔드포인트 오류: ${error.message}`);
+        res.status(500).json({ 
+          error: '서버 오류가 발생했습니다' 
+        });
+      }
+    });
+
     app.listen(PORT, '0.0.0.0', () => {
       console.error(`🚀 Multi-Platform Ads MCP Server running on port ${PORT}`);
       console.error(`📊 Health check: http://localhost:${PORT}/health`);
       console.error(`🔗 SSE endpoint: http://localhost:${PORT}/sse`);
       console.error(`💬 Message endpoint: http://localhost:${PORT}/message`);
+      console.error(`📁 Download endpoint: http://localhost:${PORT}/download/:filename`);
       
       const platformCount = Object.keys(this.services).length;
       console.error(`🎯 ${platformCount}개 플랫폼 서비스 준비됨`);

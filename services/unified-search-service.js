@@ -6,6 +6,8 @@
 import { parseUserCommand, validateCommand, formatCommandSummary } from '../utils/command-parser.js';
 import { formatNumber, formatCurrency, formatPercent } from '../utils/format-utils.js';
 import { calculateDailyTrends, formatTrendText, calculatePeriodSummary, calculateDerivedMetrics } from '../utils/daily-trend-calculator.js';
+import fs from 'fs';
+import path from 'path';
 
 export class UnifiedSearchService {
   constructor(services) {
@@ -80,6 +82,24 @@ export class UnifiedSearchService {
           type: 'object',
           properties: {}
         }
+      },
+      {
+        name: 'generate_html_file',
+        description: '캠페인 성과를 HTML 파일로 생성하여 로컬에 저장합니다',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            command: {
+              type: 'string',
+              description: '검색 명령어 (예: "키워드:고병우 날짜:20250721-20250724 매체:facebook,google")'
+            },
+            filename: {
+              type: 'string',
+              description: '저장할 파일명 (선택, 기본값: 자동생성)'
+            }
+          },
+          required: ['command']
+        }
       }
     ];
   }
@@ -96,6 +116,8 @@ export class UnifiedSearchService {
           return this.getSearchHelp();
         case 'test_html_output':
           return this.testHtmlOutput();
+        case 'generate_html_file':
+          return await this.generateHtmlFile(args.command, args.filename);
         default:
           throw new Error(`Unknown unified search tool: ${toolName}`);
       }
@@ -341,6 +363,25 @@ export class UnifiedSearchService {
       .campaign-name { 
         font-weight: bold; 
         color: #2c3e50; 
+        margin: 30px 0 20px 0;
+        padding: 15px;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-left: 5px solid #3498db;
+        border-radius: 5px;
+      }
+      .campaign-summary, .campaign-daily, .ads-summary, .ads-daily {
+        margin: 25px 0;
+        padding: 20px;
+        background: #fafbfc;
+        border-radius: 8px;
+        border: 1px solid #e1e8ed;
+      }
+      .campaign-summary h4, .campaign-daily h4, .ads-summary h4, .ads-daily h4 {
+        margin-top: 0;
+        margin-bottom: 15px;
+        color: #2c3e50;
+        border-bottom: 2px solid #3498db;
+        padding-bottom: 10px;
       }
       .summary-box {
         background: linear-gradient(135deg, #a855f7 0%, #3b82f6 100%);
@@ -374,6 +415,224 @@ export class UnifiedSearchService {
   }
 
   /**
+   * 캠페인별 일별 데이터 집계
+   */
+  aggregateCampaignDailyData(campaignAds) {
+    const campaignDailyMap = {};
+    
+    campaignAds.forEach(ad => {
+      if (ad.dailyData && ad.dailyData.length > 0) {
+        ad.dailyData.forEach(dayData => {
+          if (!campaignDailyMap[dayData.date]) {
+            campaignDailyMap[dayData.date] = {
+              date: dayData.date,
+              spend: 0,
+              impressions: 0,
+              clicks: 0,
+              conversions: 0
+            };
+          }
+          campaignDailyMap[dayData.date].spend += parseFloat(dayData.spend || 0);
+          campaignDailyMap[dayData.date].impressions += parseInt(dayData.impressions || 0);
+          campaignDailyMap[dayData.date].clicks += parseInt(dayData.clicks || 0);
+          campaignDailyMap[dayData.date].conversions += parseFloat(dayData.conversions || 0);
+        });
+      }
+    });
+    
+    return Object.values(campaignDailyMap).sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  /**
+   * 캠페인 합산 성과 HTML 생성
+   */
+  formatCampaignSummaryHtml(campaign, campaignAds, dateRange) {
+    // 전체 합산 계산
+    let totalSpend = 0;
+    let totalImpressions = 0;
+    let totalClicks = 0;
+    let totalConversions = 0;
+
+    campaignAds.forEach(ad => {
+      totalSpend += parseFloat(ad.spend || 0);
+      totalImpressions += parseInt(ad.impressions || 0);
+      totalClicks += parseInt(ad.clicks || 0);
+      
+      // 전환수 계산 (Facebook Actions 포함)
+      let conversions = parseInt(ad.conversions || 0);
+      if (conversions === 0 && ad.actions && Array.isArray(ad.actions)) {
+        const actions = ad.actions;
+        const leadActions = actions.find(action => action.action_type === 'lead')?.value || 0;
+        const purchaseActions = actions.find(action => action.action_type === 'purchase')?.value || 0;
+        const registrationActions = actions.find(action => action.action_type === 'complete_registration')?.value || 0;
+        conversions = parseInt(leadActions) + parseInt(purchaseActions) + parseInt(registrationActions);
+      }
+      totalConversions += conversions;
+    });
+
+    const avgCtr = totalImpressions > 0 ? (totalClicks / totalImpressions * 100).toFixed(2) : '0.00';
+    const avgCpc = totalClicks > 0 ? (totalSpend / totalClicks).toFixed(2) : '0.00';
+    const avgCpm = totalImpressions > 0 ? (totalSpend / totalImpressions * 1000).toFixed(2) : '0.00';
+    const conversionRate = totalClicks > 0 ? (totalConversions / totalClicks * 100).toFixed(2) : '0.00';
+    const costPerConversion = totalConversions > 0 ? (totalSpend / totalConversions).toFixed(2) : '0.00';
+
+    return `
+    <div class="campaign-summary">
+      <h4>📊 캠페인 합산 성과 (${dateRange})</h4>
+      <table>
+        <thead>
+          <tr>
+            <th>총 광고비</th>
+            <th>총 노출수</th>
+            <th>총 클릭수</th>
+            <th>평균 CTR</th>
+            <th>평균 CPC</th>
+            <th>평균 CPM</th>
+            <th>총 전환수</th>
+            <th>전환율</th>
+            <th>전환단가</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="metric-value">₩${totalSpend.toLocaleString()}</td>
+            <td class="metric-value">${totalImpressions.toLocaleString()}</td>
+            <td class="metric-value">${totalClicks.toLocaleString()}</td>
+            <td class="metric-value">${avgCtr}%</td>
+            <td class="metric-value">₩${parseFloat(avgCpc).toLocaleString()}</td>
+            <td class="metric-value">₩${parseFloat(avgCpm).toLocaleString()}</td>
+            <td class="metric-value">${totalConversions > 0 ? totalConversions.toLocaleString() : '-'}</td>
+            <td class="metric-value">${totalConversions > 0 ? conversionRate + '%' : '-'}</td>
+            <td class="metric-value">${totalConversions > 0 ? '₩' + parseFloat(costPerConversion).toLocaleString() : '-'}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>`;
+  }
+
+  /**
+   * 캠페인 일별 성과 HTML 생성
+   */
+  formatCampaignDailyHtml(campaignDailyData) {
+    if (!campaignDailyData || campaignDailyData.length === 0) {
+      return '<p class="no-data">일별 데이터가 없습니다.</p>';
+    }
+
+    const trendsData = calculateDailyTrends(campaignDailyData);
+    
+    let html = `
+    <div class="campaign-daily">
+      <h4>📈 캠페인 일별 성과</h4>
+      <table>
+        <thead>
+          <tr>
+            <th>날짜</th>
+            <th>광고비</th>
+            <th>노출수</th>
+            <th>클릭수</th>
+            <th>CTR</th>
+            <th>CPM</th>
+            <th>CPC</th>
+            <th>전일 대비 변화</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+    trendsData.forEach(dayData => {
+      const { derivedMetrics, trends } = dayData;
+      
+      const formatTrend = (metric) => {
+        const trend = trends[metric];
+        if (trend.change === 0) return '<span class="neutral">변화없음</span>';
+        const direction = trend.change > 0 ? '▲' : '▼';
+        const cssClass = trend.change > 0 ? 'increase' : 'decrease';
+        return `<span class="${cssClass}">${direction} ${Math.abs(trend.change).toLocaleString()} (${trend.changePercent}%)</span>`;
+      };
+
+      html += `
+      <tr>
+        <td>${dayData.date}</td>
+        <td class="metric-value">₩${parseFloat(dayData.spend).toLocaleString()}</td>
+        <td class="metric-value">${parseInt(dayData.impressions).toLocaleString()}</td>
+        <td class="metric-value">${parseInt(dayData.clicks).toLocaleString()}</td>
+        <td class="metric-value">${derivedMetrics.ctr}%</td>
+        <td class="metric-value">₩${derivedMetrics.cpm.toLocaleString()}</td>
+        <td class="metric-value">₩${derivedMetrics.cpc.toLocaleString()}</td>
+        <td>${formatTrend('spend')}</td>
+      </tr>`;
+    });
+
+    html += '</tbody></table></div>';
+    return html;
+  }
+
+  /**
+   * 광고별 일별 성과 HTML 생성
+   */
+  formatAdsDailyHtml(campaignAds) {
+    if (!campaignAds || campaignAds.length === 0) {
+      return '';
+    }
+
+    let html = `
+    <div class="ads-daily">
+      <h4>📅 광고별 일별 성과</h4>`;
+
+    campaignAds.forEach(ad => {
+      if (!ad.dailyData || ad.dailyData.length === 0) {
+        return;
+      }
+
+      const trendsData = calculateDailyTrends(ad.dailyData);
+      
+      html += `
+      <div style="margin: 20px 0;">
+        <h5 style="color: #2c3e50; margin-bottom: 10px;">🎯 ${ad.ad_name || ad.name}</h5>
+        <table style="font-size: 13px;">
+          <thead>
+            <tr>
+              <th>날짜</th>
+              <th>광고비</th>
+              <th>노출수</th>
+              <th>클릭수</th>
+              <th>CTR</th>
+              <th>CPC</th>
+              <th>변화</th>
+            </tr>
+          </thead>
+          <tbody>`;
+
+      trendsData.forEach(dayData => {
+        const { derivedMetrics, trends } = dayData;
+        
+        const formatTrend = (metric) => {
+          const trend = trends[metric];
+          if (trend.change === 0) return '<span class="neutral">-</span>';
+          const direction = trend.change > 0 ? '▲' : '▼';
+          const cssClass = trend.change > 0 ? 'increase' : 'decrease';
+          return `<span class="${cssClass}">${direction} ${Math.abs(trend.change).toLocaleString()}</span>`;
+        };
+
+        html += `
+        <tr>
+          <td>${dayData.date}</td>
+          <td>₩${parseFloat(dayData.spend).toLocaleString()}</td>
+          <td>${parseInt(dayData.impressions).toLocaleString()}</td>
+          <td>${parseInt(dayData.clicks).toLocaleString()}</td>
+          <td>${derivedMetrics.ctr}%</td>
+          <td>₩${derivedMetrics.cpc.toLocaleString()}</td>
+          <td>${formatTrend('spend')}</td>
+        </tr>`;
+      });
+
+      html += '</tbody></table></div>';
+    });
+
+    html += '</div>';
+    return html;
+  }
+
+  /**
    * 매체별 캠페인 테이블 HTML 생성
    */
   formatCampaignTableHtml(campaigns, ads, platform) {
@@ -385,24 +644,38 @@ export class UnifiedSearchService {
     let html = '';
 
     campaignGroups.forEach(({ campaign, campaignAds }) => {
+      const dateRange = `${campaignAds[0]?.dailyData?.[0]?.date || ''} ~ ${campaignAds[0]?.dailyData?.[campaignAds[0]?.dailyData?.length - 1]?.date || ''}`;
+      
       html += `
-      <h3 class="campaign-name">📋 ${campaign.campaign_name || campaign.name}</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>광고명</th>
-            <th>광고비</th>
-            <th>노출수</th>
-            <th>클릭수</th>
-            <th>CTR</th>
-            <th>CPM</th>
-            <th>CPC</th>
-            <th>전환수</th>
-            <th>전환율</th>
-            <th>전환단가</th>
-          </tr>
-        </thead>
-        <tbody>`;
+      <h3 class="campaign-name">📋 ${campaign.campaign_name || campaign.name}</h3>`;
+
+      // 1. 캠페인 합산 성과
+      html += this.formatCampaignSummaryHtml(campaign, campaignAds, dateRange);
+
+      // 2. 캠페인 일별 성과
+      const campaignDailyData = this.aggregateCampaignDailyData(campaignAds);
+      html += this.formatCampaignDailyHtml(campaignDailyData);
+
+      // 3. 광고별 합산 성과 테이블
+      html += `
+      <div class="ads-summary">
+        <h4>🎯 광고별 합산 성과</h4>
+        <table>
+          <thead>
+            <tr>
+              <th>광고명</th>
+              <th>광고비</th>
+              <th>노출수</th>
+              <th>클릭수</th>
+              <th>CTR</th>
+              <th>CPM</th>
+              <th>CPC</th>
+              <th>전환수</th>
+              <th>전환율</th>
+              <th>전환단가</th>
+            </tr>
+          </thead>
+          <tbody>`;
 
       if (campaignAds.length === 0) {
         html += '<tr><td colspan="10" class="no-data">광고 데이터가 없습니다.</td></tr>';
@@ -448,12 +721,10 @@ export class UnifiedSearchService {
         });
       }
 
-      html += '</tbody></table>';
+      html += '</tbody></table></div>';
 
-      // 일별 성과 추이 표시
-      if (campaignAds.length > 0 && campaignAds[0].dailyData && campaignAds[0].dailyData.length > 1) {
-        html += this.formatDailyTrendsHtml(campaignAds[0].dailyData);
-      }
+      // 4. 광고별 일별 성과
+      html += this.formatAdsDailyHtml(campaignAds);
     });
 
     return html;
@@ -949,6 +1220,83 @@ export class UnifiedSearchService {
         }
       ]
     };
+  }
+
+  /**
+   * HTML 파일 생성 및 로컬 저장
+   */
+  async generateHtmlFile(commandString, filename) {
+    try {
+      console.error(`🎯 HTML 파일 생성 시작: ${commandString}`);
+      
+      // 1. 명령어 파싱
+      const command = parseUserCommand(commandString);
+      
+      if (!validateCommand(command)) {
+        return this.createErrorResponse(`명령어 오류: ${command.errors.join(', ')}`);
+      }
+
+      // 2. 데이터 수집 (기존 로직 재사용)
+      const platformResults = await this.fetchCampaignData(command);
+      const filteredResults = this.filterByKeyword(platformResults, command.keyword);
+      const detailedResults = await this.fetchAdLevelData(filteredResults, command);
+      
+      // 3. HTML 생성
+      const htmlReport = this.generateHtmlReport(detailedResults, command);
+      const htmlContent = htmlReport.content[0].text;
+      
+      // 4. 파일명 생성
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const keyword = command.keyword.replace(/[^a-zA-Z0-9ㄱ-ㅎㅏ-ㅣ가-힣]/g, '');
+      const dateRange = `${command.startDate}-${command.endDate}`;
+      const defaultName = `campaign-report-${keyword}-${dateRange}-${timestamp}.html`;
+      const fileName = filename || defaultName;
+      
+      // 5. 임시 폴더에 저장
+      const tempDir = path.join(process.cwd(), 'temp');
+      const filePath = path.join(tempDir, fileName);
+      fs.writeFileSync(filePath, htmlContent, 'utf8');
+      
+      // 6. 통계 계산
+      const totalCampaigns = Object.values(detailedResults).reduce((sum, {campaigns}) => sum + (campaigns?.length || 0), 0);
+      const totalAds = Object.values(detailedResults).reduce((sum, {ads}) => sum + (ads?.length || 0), 0);
+      const fileSizeKB = Math.round(htmlContent.length / 1024);
+      
+      // 7. 다운로드 URL 생성
+      const serverPort = process.env.PORT || 3000;
+      const downloadUrl = `http://localhost:${serverPort}/download/${fileName}`;
+      
+      console.error(`✅ HTML 파일 생성 완료: ${filePath}`);
+      console.error(`🔗 다운로드 URL: ${downloadUrl}`);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `✅ HTML 리포트가 생성되었습니다!
+
+📊 캠페인 수: ${totalCampaigns}개
+📈 광고 수: ${totalAds}개  
+📅 기간: ${command.startDate} ~ ${command.endDate}
+🔍 키워드: ${command.keyword || '전체'}
+💾 파일 크기: ${fileSizeKB}KB
+📱 매체: ${command.platforms.map(p => {
+  const names = { facebook: 'Facebook', google: 'Google Ads', tiktok: 'TikTok Ads' };
+  return names[p] || p;
+}).join(', ')}
+
+📁 **다운로드 링크**: ${downloadUrl}
+
+💡 위 링크를 클릭하거나 브라우저에 붙여넣기하여 HTML 파일을 다운로드하세요.
+⏰ 링크는 24시간 후 만료됩니다.`
+          }
+        ]
+      };
+
+    } catch (error) {
+      console.error('HTML 파일 생성 실패:', error.message);
+      return this.createErrorResponse(`HTML 파일 생성 실패: ${error.message}`);
+    }
   }
 
   /**

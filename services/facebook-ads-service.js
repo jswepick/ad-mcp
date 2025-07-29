@@ -1,4 +1,5 @@
 import axios from 'axios';
+import 'dotenv/config';
 import { getDateRange, getPeriodText } from '../utils/date-utils.js';
 import { formatNumber, formatCurrency, formatPercent, parseActions, standardizeMetrics, formatPerformanceSummary } from '../utils/format-utils.js';
 
@@ -93,6 +94,14 @@ export class FacebookAdsService {
             }
           },
           required: ['campaign_id', 'status']
+        }
+      },
+      {
+        name: 'facebook_test_connection',
+        description: 'Facebook Ads API 연결 상태를 테스트합니다',
+        inputSchema: {
+          type: 'object',
+          properties: {}
         }
       },
       {
@@ -352,6 +361,8 @@ export class FacebookAdsService {
         return await this.toggleCampaignStatus(args.campaign_id, args.status);
       case 'facebook_get_campaign_list':
         return await this.getCampaignList(args.status_filter || 'ALL');
+      case 'facebook_test_connection':
+        return await this.testConnection();
       case 'facebook_bulk_toggle_campaigns':
         return await this.bulkToggleCampaigns(args.campaign_ids, args.status);
       case 'facebook_get_adset_list':
@@ -1596,6 +1607,46 @@ export class FacebookAdsService {
     } catch (error) {
       console.error('Facebook 광고별 성과 조회 실패:', error.message);
       throw new Error(`Facebook 광고별 성과 조회 실패: ${error.message}`);
+    }
+  }
+
+  /**
+   * Facebook Ads API 연결 상태 테스트
+   * @returns {Object} 연결 상태 결과
+   */
+  async testConnection() {
+    try {
+      console.error('Facebook Ads API 연결 테스트 시작...');
+      
+      // 간단한 API 호출로 연결 상태 확인 (계정 정보 조회)
+      const url = `${BASE_URL}/act_743936653141610`;
+      const response = await axios.get(url, {
+        params: {
+          access_token: ACCESS_TOKEN,
+          fields: 'id,name,account_status,currency,timezone_name'
+        }
+      });
+
+      if (response.data && response.data.id) {
+        console.error('✅ Facebook Ads API 연결 성공');
+        return {
+          content: [{
+            type: 'text',
+            text: `✅ Facebook Ads API 연결 성공\n\n계정 ID: ${response.data.id}\n계정 이름: ${response.data.name || 'N/A'}\n계정 상태: ${response.data.account_status || 'N/A'}\n통화: ${response.data.currency || 'N/A'}\n시간대: ${response.data.timezone_name || 'N/A'}`
+          }]
+        };
+      } else {
+        throw new Error('응답 데이터가 올바르지 않습니다');
+      }
+
+    } catch (error) {
+      console.error('❌ Facebook Ads API 연결 실패:', error.message);
+      return {
+        content: [{
+          type: 'text',
+          text: `❌ Facebook Ads API 연결 실패\n\n오류: ${error.message}\n\n설정을 확인해주세요:\n- META_ACCESS_TOKEN\n- META_AD_ACCOUNT_ID`
+        }]
+      };
     }
   }
 }

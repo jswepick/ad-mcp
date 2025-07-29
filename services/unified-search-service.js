@@ -1571,7 +1571,12 @@ export class UnifiedSearchService {
         // 날짜 필터링
         if (selectedDate !== 'all') {
           const sectionDates = section.getAttribute('data-dates').split(',');
-          if (!sectionDates.includes(selectedDate)) {
+          // 날짜 정규화 및 매칭 (시간 정보 있는 경우 대응)
+          const hasSelectedDate = sectionDates.some(sectionDate => {
+            const normalizedSectionDate = sectionDate.trim().split(' ')[0]; // 시간 정보 제거
+            return normalizedSectionDate === selectedDate;
+          });
+          if (!hasSelectedDate) {
             showSection = false;
           }
         }

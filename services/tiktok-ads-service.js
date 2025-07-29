@@ -1160,9 +1160,12 @@ export class TikTokAdsService {
         const clicks = parseInt(metrics.clicks || 0);
         const conversions = parseFloat(metrics.conversion || 0);
         
+        // 날짜 형식 정규화 (시간 정보 제거)
+        const normalizedDate = date ? date.split(' ')[0] : date; // "2025-07-21 00:00:00" → "2025-07-21"
+        
         // 일별 데이터 추가
         ad.dailyData.push({
-          date: date,
+          date: normalizedDate,
           spend: spend,
           impressions: impressions,
           clicks: clicks,

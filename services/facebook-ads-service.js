@@ -1,7 +1,7 @@
 import axios from 'axios';
 import 'dotenv/config';
 import { getDateRange, getPeriodText } from '../utils/date-utils.js';
-import { formatNumber, formatCurrency, formatPercent, parseActions, standardizeMetrics, formatPerformanceSummary, CONVERSION_ACTIONS, CUSTOM_CONVERSION_PATTERNS } from '../utils/format-utils.js';
+import { formatNumber, formatCurrency, formatPercent, parseActions, parseConversions, standardizeMetrics, formatPerformanceSummary, CONVERSION_ACTIONS, CUSTOM_CONVERSION_PATTERNS } from '../utils/format-utils.js';
 
 const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
 const AD_ACCOUNT_ID = process.env.META_AD_ACCOUNT_ID;
@@ -1069,7 +1069,7 @@ export class FacebookAdsService {
       const spend = parseFloat(ad.spend || 0);
       const impressions = parseInt(ad.impressions || 0);
       const clicks = parseInt(ad.clicks || 0);
-      const conversions = parseInt(ad.conversions || 0);
+      const conversions = ad.conversions ? parseConversions(ad.conversions).total_conversions : 0;
       const ctr = ad.ctr ? parseFloat(ad.ctr).toFixed(2) : '0.00';
       const cpc = ad.cpc ? parseFloat(ad.cpc).toFixed(2) : '0.00';
       const cpm = ad.cpm ? parseFloat(ad.cpm).toFixed(2) : '0.00';
@@ -1533,9 +1533,8 @@ export class FacebookAdsService {
             const impressions = parseInt(ad.impressions || 0);
             const clicks = parseInt(ad.clicks || 0);
             
-            // Actions에서 전환 데이터 추출 (개선된 parseActions 함수 사용)
-            const actions = parseActions(ad.actions);
-            const conversions = actions.total_conversions;
+            // Conversions에서 전환 데이터 추출 (conversions 필드 우선 사용)
+            const conversions = ad.conversions ? parseConversions(ad.conversions).total_conversions : 0;
             
             if (!adGroups[adId]) {
               adGroups[adId] = {

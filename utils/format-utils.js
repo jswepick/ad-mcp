@@ -51,7 +51,38 @@ export const CUSTOM_CONVERSION_PATTERNS = [
 ];
 
 /**
- * Facebook Actions 데이터 파싱 (개선된 버전)
+ * Facebook Conversions 데이터 파싱
+ * @param {Array} conversions - Facebook conversions 배열
+ * @returns {Object} 파싱된 전환 데이터
+ */
+export function parseConversions(conversions) {
+  if (!conversions || !Array.isArray(conversions)) {
+    return {
+      total_conversions: 0
+    };
+  }
+  
+  let totalConversions = 0;
+  
+  // 안전한 데이터 파싱
+  conversions.forEach(conversion => {
+    if (conversion && typeof conversion === 'object' && conversion.value !== undefined) {
+      const value = parseInt(conversion.value);
+      
+      // 숫자가 아닌 경우 0으로 처리
+      if (!isNaN(value) && value >= 0) {
+        totalConversions += value;
+      }
+    }
+  });
+  
+  return {
+    total_conversions: totalConversions
+  };
+}
+
+/**
+ * Facebook Actions 데이터 파싱 (기존 호환성 유지)
  * @param {Array} actions - Facebook actions 배열
  * @returns {Object} 파싱된 액션 데이터
  */

@@ -360,14 +360,20 @@ export class UnifiedSearchService {
         font-size: 18px;
         font-weight: bold;
       }
+      .campaign-section {
+        margin: 20px 0;
+        border: 1px solid #e1e8ed;
+        border-radius: 8px;
+        overflow: hidden;
+      }
       .campaign-name { 
         font-weight: bold; 
         color: #2c3e50; 
-        margin: 30px 0 20px 0;
+        margin: 0 0 20px 0;
         padding: 15px;
         background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
         border-left: 5px solid #3498db;
-        border-radius: 5px;
+        border-radius: 5px 5px 0 0;
       }
       .campaign-summary, .campaign-daily, .ads-summary, .ads-daily {
         margin: 25px 0;
@@ -411,22 +417,26 @@ export class UnifiedSearchService {
         font-style: italic;
         padding: 40px;
       }
-      .date-filter {
+      .filters-container {
         background: #f8f9fa;
-        padding: 15px 20px;
+        padding: 20px;
         border-radius: 8px;
         margin: 20px 0;
         border: 1px solid #e9ecef;
-        display: flex;
-        align-items: center;
-        gap: 10px;
       }
-      .date-filter label {
+      .date-filter, .campaign-filter, .campaign-dropdown {
+        display: inline-block;
+        margin-right: 20px;
+        margin-bottom: 10px;
+      }
+      .filters-container label {
         font-weight: bold;
         color: #2c3e50;
-        margin-right: 10px;
+        margin-right: 8px;
+        display: inline-block;
+        min-width: 100px;
       }
-      .date-filter select {
+      .filters-container select, .filters-container input {
         padding: 8px 12px;
         border: 1px solid #ced4da;
         border-radius: 4px;
@@ -435,10 +445,13 @@ export class UnifiedSearchService {
         font-size: 14px;
         min-width: 150px;
       }
-      .date-filter select:focus {
+      .filters-container select:focus, .filters-container input:focus {
         outline: none;
         border-color: #3498db;
         box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+      }
+      .campaign-filter input {
+        min-width: 200px;
       }
       #selectedDateInfo {
         font-size: 12px;
@@ -683,8 +696,21 @@ export class UnifiedSearchService {
     campaignGroups.forEach(({ campaign, campaignAds }) => {
       const dateRange = `${campaignAds[0]?.dailyData?.[0]?.date || ''} ~ ${campaignAds[0]?.dailyData?.[campaignAds[0]?.dailyData?.length - 1]?.date || ''}`;
       
+      // 캠페인 데이터에서 날짜 목록 추출
+      const campaignDates = [];
+      if (campaignAds[0]?.dailyData) {
+        campaignAds[0].dailyData.forEach(dailyEntry => {
+          if (dailyEntry.date && !campaignDates.includes(dailyEntry.date)) {
+            campaignDates.push(dailyEntry.date);
+          }
+        });
+      }
+      const datesStr = campaignDates.join(',');
+      const campaignName = campaign.campaign_name || campaign.name;
+      
       html += `
-      <h3 class="campaign-name">📋 ${campaign.campaign_name || campaign.name}</h3>`;
+      <div class="campaign-section" data-dates="${datesStr}" data-campaign-name="${campaignName}">
+      <h3 class="campaign-name">📋 ${campaignName}</h3>`;
 
       // 1. 캠페인 합산 성과
       html += this.formatCampaignSummaryHtml(campaign, campaignAds, dateRange);
@@ -762,6 +788,10 @@ export class UnifiedSearchService {
 
       // 4. 광고별 일별 성과
       html += this.formatAdsDailyHtml(campaignAds);
+      
+      // 캠페인 섹션 닫기
+      html += `
+      </div>`;
     });
 
     return html;
@@ -913,13 +943,33 @@ export class UnifiedSearchService {
       ${summary.replace(/\n/g, '<br>')}
     </div>
 
-    <div class="date-filter">
-      <label for="dateFilter">날짜 필터:</label>
-      <select id="dateFilter" onchange="filterByDate(this.value)">
-        <option value="all">전체 기간</option>
-        ${dateFilterOptions}
-      </select>
-      <span id="selectedDateInfo" style="margin-left: 10px; color: #666;"></span>
+    <div class="filters-container">
+      <div class="date-filter">
+        <label for="dateFilter">📅 날짜 필터:</label>
+        <select id="dateFilter" onchange="applyFilters()">
+          <option value="all">전체 기간</option>
+          ${dateFilterOptions}
+        </select>
+      </div>
+      
+      <div class="campaign-filter">
+        <label for="campaignSearch">🔍 캠페인 검색:</label>
+        <input type="text" id="campaignSearch" placeholder="캠페인명 검색..." oninput="applyFilters()">
+      </div>
+      
+      <div class="campaign-dropdown">
+        <label for="campaignSelect">📋 캠페인 선택:</label>
+        <select id="campaignSelect" onchange="applyFilters()">
+          <option value="all">전체 캠페인</option>
+        </select>
+      </div>
+      
+      <button onclick="resetAllFilters()" style="margin-left: 10px; padding: 5px 10px;">🔄 초기화</button>
+      
+      <div style="margin-top: 10px;">
+        <span id="selectedDateInfo" style="color: #666;"></span>
+        <span id="selectedCampaignInfo" style="margin-left: 10px; color: #666;"></span>
+      </div>
     </div>
 
     ${bodyHtml}
@@ -1474,26 +1524,117 @@ export class UnifiedSearchService {
    */
   generateJavaScriptCode() {
     return `
-    function filterByDate(selectedDate) {
-      const rows = document.querySelectorAll('[data-date]');
-      const summaryEl = document.getElementById('selectedDateInfo');
+    // 페이지 로드 시 캠페인 드롭다운 초기화
+    document.addEventListener('DOMContentLoaded', function() {
+      initializeCampaignDropdown();
+    });
+    
+    function initializeCampaignDropdown() {
+      const campaignSections = document.querySelectorAll('.campaign-section[data-campaign-name]');
+      const campaignSelect = document.getElementById('campaignSelect');
+      const campaigns = new Set();
       
-      if (selectedDate === 'all') {
-        // 모든 행 표시
-        rows.forEach(row => {
+      campaignSections.forEach(section => {
+        const campaignName = section.getAttribute('data-campaign-name');
+        if (campaignName) {
+          campaigns.add(campaignName);
+        }
+      });
+      
+      // 캠페인명 정렬 후 드롭다운에 추가
+      Array.from(campaigns).sort().forEach(campaignName => {
+        const option = document.createElement('option');
+        option.value = campaignName;
+        option.textContent = campaignName.length > 50 ? 
+          campaignName.substring(0, 50) + '...' : campaignName;
+        campaignSelect.appendChild(option);
+      });
+    }
+    
+    function applyFilters() {
+      const selectedDate = document.getElementById('dateFilter').value;
+      const searchTerm = document.getElementById('campaignSearch').value.toLowerCase().trim();
+      const selectedCampaign = document.getElementById('campaignSelect').value;
+      
+      const rows = document.querySelectorAll('[data-date]');
+      const campaignSections = document.querySelectorAll('.campaign-section');
+      
+      // 정보 표시 업데이트
+      updateFilterInfo(selectedDate, searchTerm, selectedCampaign);
+      
+      campaignSections.forEach(section => {
+        let showSection = true;
+        
+        // 날짜 필터링
+        if (selectedDate !== 'all') {
+          const sectionDates = section.getAttribute('data-dates').split(',');
+          if (!sectionDates.includes(selectedDate)) {
+            showSection = false;
+          }
+        }
+        
+        // 캠페인명 필터링
+        if (showSection && (searchTerm || selectedCampaign !== 'all')) {
+          const campaignName = section.getAttribute('data-campaign-name').toLowerCase();
+          
+          if (searchTerm && !campaignName.includes(searchTerm)) {
+            showSection = false;
+          }
+          
+          if (selectedCampaign !== 'all' && section.getAttribute('data-campaign-name') !== selectedCampaign) {
+            showSection = false;
+          }
+        }
+        
+        section.style.display = showSection ? '' : 'none';
+      });
+      
+      // 일별 데이터 행 필터링
+      rows.forEach(row => {
+        if (selectedDate === 'all') {
           row.style.display = '';
-        });
-        summaryEl.textContent = '';
-        updateSummary();
-      } else {
-        // 선택된 날짜만 표시
-        rows.forEach(row => {
+        } else {
           const rowDate = row.getAttribute('data-date');
           row.style.display = rowDate === selectedDate ? '' : 'none';
-        });
-        summaryEl.textContent = '(선택된 날짜: ' + selectedDate + ')';
-        updateSummary(selectedDate);
+        }
+      });
+      
+      updateSummary(selectedDate);
+    }
+    
+    function updateFilterInfo(selectedDate, searchTerm, selectedCampaign) {
+      const dateInfo = document.getElementById('selectedDateInfo');
+      const campaignInfo = document.getElementById('selectedCampaignInfo');
+      
+      if (selectedDate === 'all') {
+        dateInfo.textContent = '';
+      } else {
+        dateInfo.textContent = '📅 ' + selectedDate;
       }
+      
+      let campaignText = '';
+      if (searchTerm) {
+        campaignText += '🔍 "' + searchTerm + '"';
+      }
+      if (selectedCampaign !== 'all') {
+        if (campaignText) campaignText += ' | ';
+        campaignText += '📋 ' + (selectedCampaign.length > 30 ? 
+          selectedCampaign.substring(0, 30) + '...' : selectedCampaign);
+      }
+      campaignInfo.textContent = campaignText;
+    }
+    
+    function resetAllFilters() {
+      document.getElementById('dateFilter').value = 'all';
+      document.getElementById('campaignSearch').value = '';
+      document.getElementById('campaignSelect').value = 'all';
+      applyFilters();
+    }
+    
+    // 기존 호환성을 위한 함수 (날짜 필터링만)
+    function filterByDate(selectedDate) {
+      document.getElementById('dateFilter').value = selectedDate;
+      applyFilters();
     }
 
     function updateSummary(filterDate = null) {

@@ -664,7 +664,10 @@ export class UnifiedSearchService {
         };
 
         html += `
-        <tr>
+        <tr data-date="${dayData.date}" class="ad-daily-row"
+            data-spend="${dayData.spend}" 
+            data-impressions="${dayData.impressions}" 
+            data-clicks="${dayData.clicks}">
           <td>${dayData.date}</td>
           <td>₩${parseFloat(dayData.spend).toLocaleString()}</td>
           <td>${parseInt(dayData.impressions).toLocaleString()}</td>
@@ -1589,13 +1592,36 @@ export class UnifiedSearchService {
         section.style.display = showSection ? '' : 'none';
       });
       
-      // 일별 데이터 행 필터링
+      // 일별 데이터 행 필터링 (캠페인 일별 + 광고별 일별)
       rows.forEach(row => {
         if (selectedDate === 'all') {
           row.style.display = '';
         } else {
           const rowDate = row.getAttribute('data-date');
           row.style.display = rowDate === selectedDate ? '' : 'none';
+        }
+      });
+      
+      // 광고별 일별 행도 별도 필터링
+      const adDailyRows = document.querySelectorAll('.ad-daily-row[data-date]');
+      adDailyRows.forEach(row => {
+        if (selectedDate === 'all') {
+          row.style.display = '';
+        } else {
+          const rowDate = row.getAttribute('data-date');
+          row.style.display = rowDate === selectedDate ? '' : 'none';
+        }
+      });
+      
+      // 광고별 일별 테이블 전체 숨김 처리 (모든 행이 숨겨진 경우)
+      const adDailyTables = document.querySelectorAll('.ads-daily');
+      adDailyTables.forEach(table => {
+        const visibleRows = table.querySelectorAll('.ad-daily-row:not([style*="display: none"])');
+        const tableContainer = table.closest('div');
+        if (selectedDate !== 'all' && visibleRows.length === 0) {
+          table.style.display = 'none';
+        } else {
+          table.style.display = '';
         }
       });
       

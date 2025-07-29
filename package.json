@@ -12,7 +12,8 @@
     "dev": "node --watch server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "test:download": "node test-download-feature.js",
-    "test:centralized": "node test-centralized-system.js"
+    "test:centralized": "node test-centralized-system.js",
+    "test:url-fix": "node test-url-extraction-fix.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.5.0",

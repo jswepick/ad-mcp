@@ -1227,7 +1227,7 @@ export class UnifiedSearchService {
    */
   async generateHtmlFile(commandString, filename) {
     try {
-      console.error(`🎯 HTML 파일 생성 시작: ${commandString}`);
+      console.error(`HTML 파일 생성 시작: ${commandString}`);
       
       // 로컬 MCP 모드에서는 Render API 호출
       if (!process.env.RENDER_EXTERNAL_URL) {
@@ -1277,29 +1277,29 @@ export class UnifiedSearchService {
       // 7. 다운로드 URL 생성
       const downloadUrl = `https://mcp-ads.onrender.com/download/${fileName}`;
       
-      console.error(`✅ HTML 파일 생성 완료: ${filePath}`);
-      console.error(`🔗 다운로드 URL: ${downloadUrl}`);
+      console.error(`HTML 파일 생성 완료: ${filePath}`);
+      console.error(`다운로드 URL: ${downloadUrl}`);
       
       return {
         content: [
           {
             type: 'text',
-            text: `✅ HTML 리포트가 생성되었습니다!
+            text: `HTML 리포트가 생성되었습니다!
 
-📊 캠페인 수: ${totalCampaigns}개
-📈 광고 수: ${totalAds}개  
-📅 기간: ${command.startDate} ~ ${command.endDate}
-🔍 키워드: ${command.keyword || '전체'}
-💾 파일 크기: ${fileSizeKB}KB
-📱 매체: ${command.platforms.map(p => {
+캠페인 수: ${totalCampaigns}개
+광고 수: ${totalAds}개  
+기간: ${command.startDate} ~ ${command.endDate}
+키워드: ${command.keyword || '전체'}
+파일 크기: ${fileSizeKB}KB
+매체: ${command.platforms.map(p => {
   const names = { facebook: 'Facebook', google: 'Google Ads', tiktok: 'TikTok Ads' };
   return names[p] || p;
 }).join(', ')}
 
-📁 **다운로드 링크**: ${downloadUrl}
+다운로드 링크: ${downloadUrl}
 
-💡 위 링크를 클릭하거나 브라우저에 붙여넣기하여 HTML 파일을 다운로드하세요.
-⏰ 링크는 30분 후 만료됩니다.`
+위 링크를 클릭하거나 브라우저에 붙여넣기하여 HTML 파일을 다운로드하세요.
+링크는 30분 후 만료됩니다.`
           }
         ]
       };
@@ -1315,7 +1315,7 @@ export class UnifiedSearchService {
    */
   async generateHtmlViaRenderAPI(commandString, filename) {
     try {
-      console.error('🌐 Render API를 통해 HTML 생성 중...');
+      console.error('Render API를 통해 HTML 생성 중...');
       
       // API 키 수집
       const apiKeys = {};
@@ -1361,20 +1361,20 @@ export class UnifiedSearchService {
       const result = await response.json();
       
       if (result.success) {
-        console.error(`✅ Render API 호출 성공: ${result.download_url}`);
+        console.error(`Render API 호출 성공: ${result.download_url}`);
         
         return {
           content: [
             {
               type: 'text',
-              text: `✅ HTML 리포트가 생성되었습니다!
+              text: `HTML 리포트가 생성되었습니다!
 
-📁 **다운로드 링크**: ${result.download_url}
+다운로드 링크: ${result.download_url}
 
-💡 위 링크를 클릭하거나 브라우저에 붙여넣기하여 HTML 파일을 다운로드하세요.
-⏰ 링크는 30분 후 만료됩니다.
+위 링크를 클릭하거나 브라우저에 붙여넣기하여 HTML 파일을 다운로드하세요.
+링크는 30분 후 만료됩니다.
 
-📱 모든 MCP 사용자가 중앙 서버에서 생성된 파일에 접근할 수 있습니다.`
+모든 MCP 사용자가 중앙 서버에서 생성된 파일에 접근할 수 있습니다.`
             }
           ]
         };

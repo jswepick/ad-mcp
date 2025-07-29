@@ -458,7 +458,7 @@ class MultiPlatformAdsServer {
           });
         }
         
-        console.error(`📊 HTML 생성 API 요청: ${command}`);
+        console.error(`HTML 생성 API 요청: ${command}`);
         
         // API 키 보안 처리 및 임시 환경변수 설정
         const originalEnv = {};
@@ -509,20 +509,28 @@ class MultiPlatformAdsServer {
           if (result?.content?.[0]?.text) {
             const responseText = result.content[0].text;
             
-            // 다운로드 URL 추출 및 변환
-            const localUrlMatch = responseText.match(/http:\/\/localhost:\d+\/download\/([^\\s]+)/);
-            if (localUrlMatch) {
-              const filename = localUrlMatch[1];
-              const renderUrl = `${process.env.RENDER_EXTERNAL_URL || 'https://mcp-ads.onrender.com'}/download/${filename}`;
+            console.error('HTML 생성 응답 텍스트:', responseText.substring(0, 500) + '...');
+            
+            // 응답 텍스트에서 다운로드 URL 직접 추출
+            const downloadUrlMatch = responseText.match(/다운로드 링크: (https:\/\/[^\s\n]+\.html)/);
+            
+            if (downloadUrlMatch) {
+              const downloadUrl = downloadUrlMatch[1];
+              const filename = downloadUrl.split('/').pop();
+              
+              console.error(`다운로드 URL 추출 성공: ${downloadUrl}`);
+              console.error(`파일명: ${filename}`);
               
               return res.json({
                 success: true,
-                download_url: renderUrl,
+                download_url: downloadUrl,
                 filename: filename,
-                message: '✅ HTML 파일이 생성되었습니다. 아래 링크를 클릭하여 다운로드하세요.'
+                message: 'HTML 파일이 생성되었습니다. 아래 링크를 클릭하여 다운로드하세요.'
               });
             } else {
-              throw new Error('다운로드 URL을 생성할 수 없습니다');
+              console.error('응답 텍스트에서 다운로드 URL을 찾을 수 없습니다.');
+              console.error('응답 텍스트 전체:', responseText);
+              throw new Error('다운로드 URL을 찾을 수 없습니다.');
             }
           } else {
             throw new Error('HTML 생성 결과가 올바르지 않습니다');
@@ -540,7 +548,7 @@ class MultiPlatformAdsServer {
         }
         
       } catch (error) {
-        console.error(`❌ HTML 생성 API 오류: ${error.message}`);
+        console.error(`HTML 생성 API 오류: ${error.message}`);
         res.status(500).json({ 
           error: `HTML 생성 실패: ${error.message}` 
         });
@@ -570,36 +578,36 @@ class MultiPlatformAdsServer {
           });
         }
         
-        console.error(`📁 파일 다운로드 요청: ${filename}`);
+        console.error(`파일 다운로드 요청: ${filename}`);
         
         // 파일 다운로드 제공
         res.download(filePath, filename, (err) => {
           if (err) {
-            console.error(`❌ 다운로드 실패: ${err.message}`);
+            console.error(`다운로드 실패: ${err.message}`);
             if (!res.headersSent) {
               res.status(500).json({ 
                 error: '다운로드 중 오류가 발생했습니다' 
               });
             }
           } else {
-            console.error(`✅ 다운로드 완료: ${filename}`);
+            console.error(`다운로드 완료: ${filename}`);
             
-            // 다운로드 완료 후 파일 삭제 (5초 후)
+            // 다운로드 완료 후 파일 삭제 (5분 후)
             setTimeout(() => {
               try {
                 if (fs.existsSync(filePath)) {
                   fs.unlinkSync(filePath);
-                  console.error(`🗑️  임시 파일 삭제됨: ${filename}`);
+                  console.error(`임시 파일 삭제됨: ${filename}`);
                 }
               } catch (deleteError) {
-                console.error(`❌ 파일 삭제 실패: ${deleteError.message}`);
+                console.error(`파일 삭제 실패: ${deleteError.message}`);
               }
-            }, 5000);
+            }, 5 * 60 * 1000); // 5분 = 5 * 60 * 1000ms
           }
         });
         
       } catch (error) {
-        console.error(`❌ 다운로드 엔드포인트 오류: ${error.message}`);
+        console.error(`다운로드 엔드포인트 오류: ${error.message}`);
         res.status(500).json({ 
           error: '서버 오류가 발생했습니다' 
         });

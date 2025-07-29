@@ -29,27 +29,73 @@ export function formatPercent(rate, decimals = 2) {
 }
 
 /**
- * Facebook Actions 데이터 파싱
+ * 전환으로 인정할 액션 타입들
+ */
+export const CONVERSION_ACTIONS = [
+  'lead',
+  'purchase', 
+  'complete_registration',
+  'submit_application',
+  'subscribe',
+  'start_trial'
+];
+
+/**
+ * Facebook Actions 데이터 파싱 (개선된 버전)
  * @param {Array} actions - Facebook actions 배열
  * @returns {Object} 파싱된 액션 데이터
  */
 export function parseActions(actions) {
-  if (!actions || !Array.isArray(actions)) return {};
+  if (!actions || !Array.isArray(actions)) {
+    return {
+      lead: 0,
+      link_click: 0,
+      landing_page_view: 0,
+      purchase: 0,
+      add_to_cart: 0,
+      complete_registration: 0,
+      submit_application: 0,
+      subscribe: 0,
+      start_trial: 0,
+      total_actions: 0,
+      total_conversions: 0
+    };
+  }
   
   const actionMap = {};
+  
+  // 안전한 데이터 파싱
   actions.forEach(action => {
-    actionMap[action.action_type] = parseInt(action.value || 0);
+    if (action && typeof action === 'object' && action.action_type && action.value !== undefined) {
+      const actionType = action.action_type;
+      const value = parseInt(action.value);
+      
+      // 숫자가 아닌 경우 0으로 처리
+      if (!isNaN(value) && value >= 0) {
+        actionMap[actionType] = value;
+      }
+    }
   });
   
-  return {
+  const parsedActions = {
     lead: actionMap.lead || 0,
     link_click: actionMap.link_click || 0,
     landing_page_view: actionMap.landing_page_view || 0,
     purchase: actionMap.purchase || 0,
     add_to_cart: actionMap.add_to_cart || 0,
     complete_registration: actionMap.complete_registration || 0,
+    submit_application: actionMap.submit_application || 0,
+    subscribe: actionMap.subscribe || 0,
+    start_trial: actionMap.start_trial || 0,
     total_actions: Object.values(actionMap).reduce((sum, val) => sum + val, 0)
   };
+  
+  // 전환 액션들의 합계 계산
+  parsedActions.total_conversions = CONVERSION_ACTIONS.reduce((sum, actionType) => {
+    return sum + (parsedActions[actionType] || 0);
+  }, 0);
+  
+  return parsedActions;
 }
 
 /**

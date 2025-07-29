@@ -1,7 +1,7 @@
 import axios from 'axios';
 import 'dotenv/config';
 import { getDateRange, getPeriodText } from '../utils/date-utils.js';
-import { formatNumber, formatCurrency, formatPercent, parseActions, standardizeMetrics, formatPerformanceSummary } from '../utils/format-utils.js';
+import { formatNumber, formatCurrency, formatPercent, parseActions, standardizeMetrics, formatPerformanceSummary, CONVERSION_ACTIONS } from '../utils/format-utils.js';
 
 const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
 const AD_ACCOUNT_ID = process.env.META_AD_ACCOUNT_ID;
@@ -471,9 +471,8 @@ export class FacebookAdsService {
     const totalSpend = data.reduce((sum, item) => sum + parseFloat(item.spend || 0), 0);
     const totalImpressions = data.reduce((sum, item) => sum + parseInt(item.impressions || 0), 0);
     const totalClicks = data.reduce((sum, item) => sum + parseInt(item.clicks || 0), 0);
-    const totalConversions = data.reduce((sum, item) => sum + parseInt(item.conversions || 0), 0);
     
-    // actions 데이터 집계
+    // Actions 기반 전환 계산으로 통일
     const totalActions = {
       lead: 0,
       link_click: 0,
@@ -481,7 +480,11 @@ export class FacebookAdsService {
       purchase: 0,
       add_to_cart: 0,
       complete_registration: 0,
-      total_actions: 0
+      submit_application: 0,
+      subscribe: 0,
+      start_trial: 0,
+      total_actions: 0,
+      total_conversions: 0
     };
     
     data.forEach(item => {
@@ -492,20 +495,24 @@ export class FacebookAdsService {
       totalActions.purchase += actions.purchase;
       totalActions.add_to_cart += actions.add_to_cart;
       totalActions.complete_registration += actions.complete_registration;
+      totalActions.submit_application += actions.submit_application;
+      totalActions.subscribe += actions.subscribe;
+      totalActions.start_trial += actions.start_trial;
       totalActions.total_actions += actions.total_actions;
+      totalActions.total_conversions += actions.total_conversions;
     });
     
     const overallCTR = totalImpressions > 0 ? (totalClicks / totalImpressions * 100).toFixed(2) : 0;
     const overallCPC = totalClicks > 0 ? (totalSpend / totalClicks).toFixed(2) : 0;
     const overallCPM = totalImpressions > 0 ? (totalSpend / totalImpressions * 1000).toFixed(2) : 0;
-    const overallConversionRate = totalClicks > 0 ? (totalConversions / totalClicks * 100).toFixed(2) : 'NaN';
+    const overallConversionRate = totalClicks > 0 ? (totalActions.total_conversions / totalClicks * 100).toFixed(2) : '0.00';
 
     let result = `📊 **${periodText} Facebook 광고 성과 분석**\n\n`;
     result += `🎯 **전체 성과 요약**\n`;
     result += `💰 총 지출: ${formatCurrency(totalSpend)}\n`;
     result += `👁️ 노출수: ${formatNumber(totalImpressions)}\n`;
     result += `🖱️ 클릭수: ${formatNumber(totalClicks)}\n`;
-    result += `🎯 전환수: ${totalConversions || 'NaN'}\n`;
+    result += `🎯 전환수: ${formatNumber(totalActions.total_conversions)}\n`;
     result += `📈 CTR: ${overallCTR}%\n`;
     result += `💵 CPC: ${formatCurrency(overallCPC)}\n`;
     result += `📊 CPM: ${formatCurrency(overallCPM)}\n`;
@@ -1043,11 +1050,11 @@ export class FacebookAdsService {
     result += `💰 총 지출: ${formatCurrency(totalSpend)}\n`;
     result += `👁️ 노출수: ${formatNumber(totalImpressions)}\n`;
     result += `🖱️ 클릭수: ${formatNumber(totalClicks)}\n`;
-    result += `🎯 전환수: ${totalConversions || 'NaN'}\n`;
+    result += `🎯 전환수: ${formatNumber(totalConversions)}\n`;
     result += `📈 CTR: ${overallCTR}%\n`;
     result += `💵 CPC: ${formatCurrency(overallCPC)}\n`;
     result += `📊 CPM: ${formatCurrency(overallCPM)}\n`;
-    result += `🔄 전환율: NaN%\n`;
+    result += `🔄 전환율: ${overallConversionRate}%\n`;
     result += `📊 **Actions 상세:**\n`;
     result += `   🎯 리드: ${totalActions.lead}\n`;
     result += `   🔗 링크클릭: ${totalActions.link_click}\n`;
@@ -1526,14 +1533,9 @@ export class FacebookAdsService {
             const impressions = parseInt(ad.impressions || 0);
             const clicks = parseInt(ad.clicks || 0);
             
-            // Actions에서 전환 데이터 추출
-            let conversions = 0;
-            if (ad.actions && Array.isArray(ad.actions)) {
-              const leadActions = ad.actions.find(action => action.action_type === 'lead')?.value || 0;
-              const purchaseActions = ad.actions.find(action => action.action_type === 'purchase')?.value || 0;
-              const registrationActions = ad.actions.find(action => action.action_type === 'complete_registration')?.value || 0;
-              conversions = parseInt(leadActions) + parseInt(purchaseActions) + parseInt(registrationActions);
-            }
+            // Actions에서 전환 데이터 추출 (개선된 parseActions 함수 사용)
+            const actions = parseActions(ad.actions);
+            const conversions = actions.total_conversions;
             
             if (!adGroups[adId]) {
               adGroups[adId] = {

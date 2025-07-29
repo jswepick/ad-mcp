@@ -411,6 +411,40 @@ export class UnifiedSearchService {
         font-style: italic;
         padding: 40px;
       }
+      .date-filter {
+        background: #f8f9fa;
+        padding: 15px 20px;
+        border-radius: 8px;
+        margin: 20px 0;
+        border: 1px solid #e9ecef;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .date-filter label {
+        font-weight: bold;
+        color: #2c3e50;
+        margin-right: 10px;
+      }
+      .date-filter select {
+        padding: 8px 12px;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        background: white;
+        color: #495057;
+        font-size: 14px;
+        min-width: 150px;
+      }
+      .date-filter select:focus {
+        outline: none;
+        border-color: #3498db;
+        box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+      }
+      #selectedDateInfo {
+        font-size: 12px;
+        color: #6c757d;
+        font-style: italic;
+      }
     </style>`;
   }
 
@@ -550,7 +584,10 @@ export class UnifiedSearchService {
       };
 
       html += `
-      <tr>
+      <tr data-date="${dayData.date}" 
+          data-spend="${dayData.spend}" 
+          data-impressions="${dayData.impressions}" 
+          data-clicks="${dayData.clicks}">
         <td>${dayData.date}</td>
         <td class="metric-value">₩${parseFloat(dayData.spend).toLocaleString()}</td>
         <td class="metric-value">${parseInt(dayData.impressions).toLocaleString()}</td>
@@ -765,7 +802,10 @@ export class UnifiedSearchService {
       };
 
       html += `
-      <tr>
+      <tr data-date="${dayData.date}" 
+          data-spend="${dayData.spend}" 
+          data-impressions="${dayData.impressions}" 
+          data-clicks="${dayData.clicks}">
         <td>${dayData.date}</td>
         <td>₩${parseFloat(dayData.spend).toLocaleString()}<br><small>${formatTrend('spend')}</small></td>
         <td>${parseInt(dayData.impressions).toLocaleString()}<br><small>${formatTrend('impressions')}</small></td>
@@ -852,6 +892,10 @@ export class UnifiedSearchService {
       </div>
     </div>` : '<p class="no-data">조건에 맞는 캠페인을 찾을 수 없습니다.</p>';
 
+    // 날짜 범위 수집 (날짜 필터용)
+    const dateRange = this.getDateRangeFromCommand(command);
+    const dateFilterOptions = this.generateDateFilterOptions(dateRange);
+
     const htmlContent = `<!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -862,11 +906,20 @@ export class UnifiedSearchService {
 </head>
 <body>
   <div class="container">
-    <h1>🎯 캠페인 성과 리포트</h1>
+    <h1>캠페인 성과 리포트</h1>
     
     <div class="search-info">
       <strong>검색 조건:</strong><br>
       ${summary.replace(/\n/g, '<br>')}
+    </div>
+
+    <div class="date-filter">
+      <label for="dateFilter">날짜 필터:</label>
+      <select id="dateFilter" onchange="filterByDate(this.value)">
+        <option value="all">전체 기간</option>
+        ${dateFilterOptions}
+      </select>
+      <span id="selectedDateInfo" style="margin-left: 10px; color: #666;"></span>
     </div>
 
     ${bodyHtml}
@@ -877,6 +930,10 @@ export class UnifiedSearchService {
       리포트 생성 시간: ${new Date().toLocaleString('ko-KR')}
     </div>
   </div>
+
+  <script>
+    ${this.generateJavaScriptCode()}
+  </script>
 </body>
 </html>`;
 
@@ -1386,6 +1443,90 @@ export class UnifiedSearchService {
       console.error('Render API 호출 실패:', error.message);
       return this.createErrorResponse(`중앙 서버 HTML 생성 실패: ${error.message}`);
     }
+  }
+
+  /**
+   * 날짜 범위 추출
+   */
+  getDateRangeFromCommand(command) {
+    const startDate = new Date(command.startDate);
+    const endDate = new Date(command.endDate);
+    const dates = [];
+    
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      dates.push(new Date(d).toISOString().split('T')[0]);
+    }
+    
+    return dates;
+  }
+
+  /**
+   * 날짜 필터 옵션 생성
+   */
+  generateDateFilterOptions(dateRange) {
+    return dateRange.map(date => 
+      `<option value="${date}">${date}</option>`
+    ).join('');
+  }
+
+  /**
+   * JavaScript 코드 생성
+   */
+  generateJavaScriptCode() {
+    return `
+    function filterByDate(selectedDate) {
+      const rows = document.querySelectorAll('[data-date]');
+      const summaryEl = document.getElementById('selectedDateInfo');
+      
+      if (selectedDate === 'all') {
+        // 모든 행 표시
+        rows.forEach(row => {
+          row.style.display = '';
+        });
+        summaryEl.textContent = '';
+        updateSummary();
+      } else {
+        // 선택된 날짜만 표시
+        rows.forEach(row => {
+          const rowDate = row.getAttribute('data-date');
+          row.style.display = rowDate === selectedDate ? '' : 'none';
+        });
+        summaryEl.textContent = '(선택된 날짜: ' + selectedDate + ')';
+        updateSummary(selectedDate);
+      }
+    }
+
+    function updateSummary(filterDate = null) {
+      let totalSpend = 0;
+      let totalImpressions = 0;
+      let totalClicks = 0;
+      
+      const rows = document.querySelectorAll('[data-date]');
+      rows.forEach(row => {
+        if (filterDate && row.getAttribute('data-date') !== filterDate) return;
+        if (row.style.display === 'none') return;
+        
+        const spend = parseFloat(row.getAttribute('data-spend') || 0);
+        const impressions = parseInt(row.getAttribute('data-impressions') || 0);
+        const clicks = parseInt(row.getAttribute('data-clicks') || 0);
+        
+        totalSpend += spend;
+        totalImpressions += impressions;
+        totalClicks += clicks;
+      });
+      
+      // 요약 정보 업데이트
+      const summaryBox = document.querySelector('.summary-box');
+      if (summaryBox && filterDate) {
+        const ctr = totalImpressions > 0 ? (totalClicks / totalImpressions * 100).toFixed(2) : '0.00';
+        summaryBox.innerHTML = '<h3>선택된 날짜 요약 (' + filterDate + ')</h3>' +
+          '<div>총 광고비: <span class="metric-value">₩' + totalSpend.toLocaleString() + '</span></div>' +
+          '<div>총 노출수: <span class="metric-value">' + totalImpressions.toLocaleString() + '</span></div>' +
+          '<div>총 클릭수: <span class="metric-value">' + totalClicks.toLocaleString() + '</span></div>' +
+          '<div>전체 CTR: <span class="metric-value">' + ctr + '%</span></div>';
+      }
+    }
+    `;
   }
 
   /**

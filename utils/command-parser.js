@@ -91,6 +91,8 @@ export function parseUserCommand(userInput) {
     startDate: null,
     endDate: null,
     platforms: [],
+    reportType: 'internal', // 기본값: 내부용
+    customTitle: null, // 기본값: null (자동 제목 사용)
     raw: userInput,
     isValid: true,
     errors: []
@@ -168,6 +170,42 @@ export function parseUserCommand(userInput) {
       command.platforms = [...ALL_PLATFORMS];
     }
 
+    // 리포트 타입 추출
+    const reportMatch = userInput.match(/리포트:([^\s]+)/);
+    if (reportMatch) {
+      const reportStr = reportMatch[1].toLowerCase();
+      if (reportStr === '광고주' || reportStr === 'client') {
+        command.reportType = 'client';
+      } else if (reportStr === '내부' || reportStr === 'internal') {
+        command.reportType = 'internal';
+      } else {
+        command.errors.push('유효하지 않은 리포트 타입입니다 (광고주 또는 내부만 가능)');
+        command.isValid = false;
+      }
+    }
+
+    // 커스텀 제목 추출
+    const titleMatch = userInput.match(/제목:([^]+)/);
+    if (titleMatch) {
+      let title = titleMatch[1].trim();
+      // 다른 파라미터 제거 (제목 뒤에 다른 파라미터가 올 경우)
+      title = title.split(/\s+(?=\w+:)/)[0];
+      
+      // 제목 길이 제한 및 안전성 검사
+      if (title.length > 100) {
+        command.errors.push('제목은 100자를 초과할 수 없습니다');
+        command.isValid = false;
+      } else if (title.length > 0) {
+        // HTML 특수문자 기본 이스케이프
+        command.customTitle = title
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+    }
+
     // 날짜 유효성 검사
     if (command.startDate && command.endDate) {
       const start = new Date(command.startDate);
@@ -224,7 +262,15 @@ export function formatCommandSummary(command) {
     ? command.startDate 
     : `${command.startDate} ~ ${command.endDate}`;
 
-  return `검색 조건\n- 키워드: "${command.keyword}"\n- 기간: ${dateRange}\n- 매체: ${platformList}`;
+  const reportTypeText = command.reportType === 'client' ? '광고주용' : '내부용';
+  
+  let summary = `검색 조건\n- 키워드: "${command.keyword}"\n- 기간: ${dateRange}\n- 매체: ${platformList}\n- 리포트: ${reportTypeText}`;
+  
+  if (command.customTitle) {
+    summary += `\n- 제목: "${command.customTitle}"`;
+  }
+  
+  return summary;
 }
 
 /**
@@ -234,10 +280,10 @@ export function formatCommandSummary(command) {
 export function getExampleCommands() {
   return [
     '키워드:고병우 날짜:20250720-20250721 매체:구글,페이스북',
-    '키워드:울산심플치과 날짜:어제 매체:틱톡',
-    '키워드:치아교정 날짜:7일 매체:전체',
-    '키워드:김영희 날짜:20250701-20250731 매체:페이스북',
-    '키워드:성형외과 날짜:오늘 매체:구글'
+    '키워드:울산심플치과 날짜:어제 매체:틱톡 리포트:광고주',
+    '키워드:치아교정 날짜:7일 매체:전체 제목:2024년 4분기 치아교정 캠페인 성과',
+    '키워드:김영희 날짜:20250701-20250731 매체:페이스북 리포트:내부',
+    '키워드:성형외과 날짜:오늘 매체:구글 리포트:광고주 제목:모모성형외과 일일 성과 리포트'
   ];
 }
 

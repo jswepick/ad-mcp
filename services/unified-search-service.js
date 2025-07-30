@@ -493,7 +493,7 @@ export class UnifiedSearchService {
   /**
    * 캠페인 합산 성과 HTML 생성
    */
-  formatCampaignSummaryHtml(campaign, campaignAds, dateRange) {
+  formatCampaignSummaryHtml(campaign, campaignAds, dateRange, tableColumns, isClientReport) {
     // 전체 합산 계산
     let totalSpend = 0;
     let totalImpressions = 0;
@@ -523,34 +523,45 @@ export class UnifiedSearchService {
     const conversionRate = totalClicks > 0 ? (totalConversions / totalClicks * 100).toFixed(2) : '0.00';
     const costPerConversion = totalConversions > 0 ? (totalSpend / totalConversions).toFixed(2) : '0.00';
 
+    // 테이블 헤더 생성
+    const headerHtml = tableColumns.summary.map(col => `<th>${col.startsWith('총') || col.startsWith('평균') ? col : '총 ' + col}</th>`).join('');
+    
+    // 테이블 데이터 생성 (리포트 타입에 따라)
+    let dataHtml = '';
+    if (isClientReport) {
+      // 광고주용: 비용 관련 정보 제외
+      dataHtml = `
+        <td class="metric-value">${totalImpressions.toLocaleString()}</td>
+        <td class="metric-value">${totalClicks.toLocaleString()}</td>
+        <td class="metric-value">${avgCtr}%</td>
+        <td class="metric-value">${totalConversions > 0 ? totalConversions.toLocaleString() : '-'}</td>
+        <td class="metric-value">${totalConversions > 0 ? conversionRate + '%' : '-'}</td>`;
+    } else {
+      // 내부용: 모든 정보 포함
+      dataHtml = `
+        <td class="metric-value">₩${totalSpend.toLocaleString()}</td>
+        <td class="metric-value">${totalImpressions.toLocaleString()}</td>
+        <td class="metric-value">${totalClicks.toLocaleString()}</td>
+        <td class="metric-value">${avgCtr}%</td>
+        <td class="metric-value">₩${parseFloat(avgCpc).toLocaleString()}</td>
+        <td class="metric-value">₩${parseFloat(avgCpm).toLocaleString()}</td>
+        <td class="metric-value">${totalConversions > 0 ? totalConversions.toLocaleString() : '-'}</td>
+        <td class="metric-value">${totalConversions > 0 ? conversionRate + '%' : '-'}</td>
+        <td class="metric-value">${totalConversions > 0 ? '₩' + parseFloat(costPerConversion).toLocaleString() : '-'}</td>`;
+    }
+
     return `
     <div class="campaign-summary">
       <h4>📊 캠페인 합산 성과 (${dateRange})</h4>
       <table>
         <thead>
           <tr>
-            <th>총 광고비</th>
-            <th>총 노출수</th>
-            <th>총 클릭수</th>
-            <th>평균 CTR</th>
-            <th>평균 CPC</th>
-            <th>평균 CPM</th>
-            <th>총 전환수</th>
-            <th>전환율</th>
-            <th>전환단가</th>
+            ${headerHtml}
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td class="metric-value">₩${totalSpend.toLocaleString()}</td>
-            <td class="metric-value">${totalImpressions.toLocaleString()}</td>
-            <td class="metric-value">${totalClicks.toLocaleString()}</td>
-            <td class="metric-value">${avgCtr}%</td>
-            <td class="metric-value">₩${parseFloat(avgCpc).toLocaleString()}</td>
-            <td class="metric-value">₩${parseFloat(avgCpm).toLocaleString()}</td>
-            <td class="metric-value">${totalConversions > 0 ? totalConversions.toLocaleString() : '-'}</td>
-            <td class="metric-value">${totalConversions > 0 ? conversionRate + '%' : '-'}</td>
-            <td class="metric-value">${totalConversions > 0 ? '₩' + parseFloat(costPerConversion).toLocaleString() : '-'}</td>
+            ${dataHtml}
           </tr>
         </tbody>
       </table>
@@ -560,12 +571,15 @@ export class UnifiedSearchService {
   /**
    * 캠페인 일별 성과 HTML 생성
    */
-  formatCampaignDailyHtml(campaignDailyData) {
+  formatCampaignDailyHtml(campaignDailyData, tableColumns, isClientReport) {
     if (!campaignDailyData || campaignDailyData.length === 0) {
       return '<p class="no-data">일별 데이터가 없습니다.</p>';
     }
 
     const trendsData = calculateDailyTrends(campaignDailyData);
+    
+    // 테이블 헤더 생성
+    const headerHtml = tableColumns.daily.map(col => `<th>${col}</th>`).join('');
     
     let html = `
     <div class="campaign-daily">
@@ -573,14 +587,7 @@ export class UnifiedSearchService {
       <table>
         <thead>
           <tr>
-            <th>날짜</th>
-            <th>광고비</th>
-            <th>노출수</th>
-            <th>클릭수</th>
-            <th>CTR</th>
-            <th>CPM</th>
-            <th>CPC</th>
-            <th>전일 대비 변화</th>
+            ${headerHtml}
           </tr>
         </thead>
         <tbody>`;
@@ -596,19 +603,35 @@ export class UnifiedSearchService {
         return `<span class="${cssClass}">${direction} ${Math.abs(trend.change).toLocaleString()} (${trend.changePercent}%)</span>`;
       };
 
+      // 일별 데이터 행 생성 (리포트 타입에 따라)
+      let dailyDataHtml = '';
+      if (isClientReport) {
+        // 광고주용: 비용 관련 정보 제외
+        dailyDataHtml = `
+          <td>${dayData.date}</td>
+          <td class="metric-value">${parseInt(dayData.impressions).toLocaleString()}</td>
+          <td class="metric-value">${parseInt(dayData.clicks).toLocaleString()}</td>
+          <td class="metric-value">${derivedMetrics.ctr}%</td>
+          <td>${formatTrend('clicks')}</td>`;
+      } else {
+        // 내부용: 모든 정보 포함
+        dailyDataHtml = `
+          <td>${dayData.date}</td>
+          <td class="metric-value">₩${parseFloat(dayData.spend).toLocaleString()}</td>
+          <td class="metric-value">${parseInt(dayData.impressions).toLocaleString()}</td>
+          <td class="metric-value">${parseInt(dayData.clicks).toLocaleString()}</td>
+          <td class="metric-value">${derivedMetrics.ctr}%</td>
+          <td class="metric-value">₩${derivedMetrics.cpm.toLocaleString()}</td>
+          <td class="metric-value">₩${derivedMetrics.cpc.toLocaleString()}</td>
+          <td>${formatTrend('spend')}</td>`;
+      }
+
       html += `
       <tr data-date="${dayData.date}" 
           data-spend="${dayData.spend}" 
           data-impressions="${dayData.impressions}" 
           data-clicks="${dayData.clicks}">
-        <td>${dayData.date}</td>
-        <td class="metric-value">₩${parseFloat(dayData.spend).toLocaleString()}</td>
-        <td class="metric-value">${parseInt(dayData.impressions).toLocaleString()}</td>
-        <td class="metric-value">${parseInt(dayData.clicks).toLocaleString()}</td>
-        <td class="metric-value">${derivedMetrics.ctr}%</td>
-        <td class="metric-value">₩${derivedMetrics.cpm.toLocaleString()}</td>
-        <td class="metric-value">₩${derivedMetrics.cpc.toLocaleString()}</td>
-        <td>${formatTrend('spend')}</td>
+        ${dailyDataHtml}
       </tr>`;
     });
 
@@ -619,7 +642,7 @@ export class UnifiedSearchService {
   /**
    * 광고별 일별 성과 HTML 생성
    */
-  formatAdsDailyHtml(campaignAds) {
+  formatAdsDailyHtml(campaignAds, tableColumns, isClientReport) {
     if (!campaignAds || campaignAds.length === 0) {
       return '';
     }
@@ -635,19 +658,17 @@ export class UnifiedSearchService {
 
       const trendsData = calculateDailyTrends(ad.dailyData);
       
+      // 광고별 일별 테이블 헤더 생성
+      const adsDaily = tableColumns.daily;
+      const adsDailyHeaderHtml = adsDaily.map(col => `<th>${col}</th>`).join('');
+
       html += `
       <div style="margin: 20px 0;">
         <h5 style="color: #2c3e50; margin-bottom: 10px;">🎯 ${ad.ad_name || ad.name}</h5>
         <table style="font-size: 13px;">
           <thead>
             <tr>
-              <th>날짜</th>
-              <th>광고비</th>
-              <th>노출수</th>
-              <th>클릭수</th>
-              <th>CTR</th>
-              <th>CPC</th>
-              <th>변화</th>
+              ${adsDailyHeaderHtml}
             </tr>
           </thead>
           <tbody>`;
@@ -663,18 +684,35 @@ export class UnifiedSearchService {
           return `<span class="${cssClass}">${direction} ${Math.abs(trend.change).toLocaleString()}</span>`;
         };
 
+        // 광고별 일별 데이터 행 생성 (리포트 타입에 따라)
+        let adsDailyDataHtml = '';
+        if (isClientReport) {
+          // 광고주용: 비용 관련 정보 제외
+          adsDailyDataHtml = `
+            <td>${dayData.date}</td>
+            <td>${parseInt(dayData.impressions).toLocaleString()}</td>
+            <td>${parseInt(dayData.clicks).toLocaleString()}</td>
+            <td>${derivedMetrics.ctr}%</td>
+            <td>${formatTrend('clicks')}</td>`;
+        } else {
+          // 내부용: 모든 정보 포함
+          adsDailyDataHtml = `
+            <td>${dayData.date}</td>
+            <td>₩${parseFloat(dayData.spend).toLocaleString()}</td>
+            <td>${parseInt(dayData.impressions).toLocaleString()}</td>
+            <td>${parseInt(dayData.clicks).toLocaleString()}</td>
+            <td>${derivedMetrics.ctr}%</td>
+            <td>₩${derivedMetrics.cpm.toLocaleString()}</td>
+            <td>₩${derivedMetrics.cpc.toLocaleString()}</td>
+            <td>${formatTrend('spend')}</td>`;
+        }
+
         html += `
         <tr data-date="${dayData.date}" class="ad-daily-row"
             data-spend="${dayData.spend}" 
             data-impressions="${dayData.impressions}" 
             data-clicks="${dayData.clicks}">
-          <td>${dayData.date}</td>
-          <td>₩${parseFloat(dayData.spend).toLocaleString()}</td>
-          <td>${parseInt(dayData.impressions).toLocaleString()}</td>
-          <td>${parseInt(dayData.clicks).toLocaleString()}</td>
-          <td>${derivedMetrics.ctr}%</td>
-          <td>₩${derivedMetrics.cpc.toLocaleString()}</td>
-          <td>${formatTrend('spend')}</td>
+          ${adsDailyDataHtml}
         </tr>`;
       });
 
@@ -688,7 +726,7 @@ export class UnifiedSearchService {
   /**
    * 매체별 캠페인 테이블 HTML 생성
    */
-  formatCampaignTableHtml(campaigns, ads, platform) {
+  formatCampaignTableHtml(campaigns, ads, platform, tableColumns, isClientReport) {
     if (campaigns.length === 0) {
       return '<p class="no-data">매칭되는 캠페인이 없습니다.</p>';
     }
@@ -716,35 +754,28 @@ export class UnifiedSearchService {
       <h3 class="campaign-name">📋 ${campaignName}</h3>`;
 
       // 1. 캠페인 합산 성과
-      html += this.formatCampaignSummaryHtml(campaign, campaignAds, dateRange);
+      html += this.formatCampaignSummaryHtml(campaign, campaignAds, dateRange, tableColumns, isClientReport);
 
       // 2. 캠페인 일별 성과
       const campaignDailyData = this.aggregateCampaignDailyData(campaignAds);
-      html += this.formatCampaignDailyHtml(campaignDailyData);
+      html += this.formatCampaignDailyHtml(campaignDailyData, tableColumns, isClientReport);
 
       // 3. 광고별 합산 성과 테이블
+      const adsHeaderHtml = tableColumns.ads.map(col => `<th>${col}</th>`).join('');
+      
       html += `
       <div class="ads-summary">
         <h4>🎯 광고별 합산 성과</h4>
         <table>
           <thead>
             <tr>
-              <th>광고명</th>
-              <th>광고비</th>
-              <th>노출수</th>
-              <th>클릭수</th>
-              <th>CTR</th>
-              <th>CPM</th>
-              <th>CPC</th>
-              <th>전환수</th>
-              <th>전환율</th>
-              <th>전환단가</th>
+              ${adsHeaderHtml}
             </tr>
           </thead>
           <tbody>`;
 
       if (campaignAds.length === 0) {
-        html += '<tr><td colspan="10" class="no-data">광고 데이터가 없습니다.</td></tr>';
+        html += `<tr><td colspan="${tableColumns.ads.length}" class="no-data">광고 데이터가 없습니다.</td></tr>`;
       } else {
         campaignAds.forEach(ad => {
           const spend = parseFloat(ad.spend || 0);
@@ -771,18 +802,35 @@ export class UnifiedSearchService {
 
           const conversionRate = clicks > 0 ? (conversions / clicks * 100).toFixed(2) : '0.00';
 
+          // 광고 데이터 행 생성 (리포트 타입에 따라)
+          let adsDataHtml = '';
+          if (isClientReport) {
+            // 광고주용: 비용 관련 정보 제외
+            adsDataHtml = `
+              <td>${ad.ad_name || ad.name}</td>
+              <td class="metric-value">${impressions.toLocaleString()}</td>
+              <td class="metric-value">${clicks.toLocaleString()}</td>
+              <td class="metric-value">${ctr}%</td>
+              <td class="metric-value">${conversions > 0 ? conversions.toLocaleString() : '-'}</td>
+              <td class="metric-value">${conversions > 0 ? conversionRate + '%' : '-'}</td>`;
+          } else {
+            // 내부용: 모든 정보 포함
+            adsDataHtml = `
+              <td>${ad.ad_name || ad.name}</td>
+              <td class="metric-value">₩${spend.toLocaleString()}</td>
+              <td class="metric-value">${impressions.toLocaleString()}</td>
+              <td class="metric-value">${clicks.toLocaleString()}</td>
+              <td class="metric-value">${ctr}%</td>
+              <td class="metric-value">₩${parseFloat(cpc).toLocaleString()}</td>
+              <td class="metric-value">₩${parseFloat(cpm).toLocaleString()}</td>
+              <td class="metric-value">${conversions > 0 ? conversions.toLocaleString() : '-'}</td>
+              <td class="metric-value">${conversions > 0 ? conversionRate + '%' : '-'}</td>
+              <td class="metric-value">${costPerConversion > 0 ? '₩' + costPerConversion.toLocaleString() : '-'}</td>`;
+          }
+
           html += `
           <tr>
-            <td>${ad.ad_name || ad.name}</td>
-            <td class="metric-value">₩${spend.toLocaleString()}</td>
-            <td class="metric-value">${impressions.toLocaleString()}</td>
-            <td class="metric-value">${clicks.toLocaleString()}</td>
-            <td class="metric-value">${ctr}%</td>
-            <td class="metric-value">₩${parseFloat(cpm).toLocaleString()}</td>
-            <td class="metric-value">₩${parseFloat(cpc).toLocaleString()}</td>
-            <td class="metric-value">${conversions > 0 ? conversions.toLocaleString() : '-'}</td>
-            <td class="metric-value">${conversions > 0 ? conversionRate + '%' : '-'}</td>
-            <td class="metric-value">${costPerConversion > 0 ? '₩' + costPerConversion.toLocaleString() : '-'}</td>
+            ${adsDataHtml}
           </tr>`;
         });
       }
@@ -790,7 +838,7 @@ export class UnifiedSearchService {
       html += '</tbody></table></div>';
 
       // 4. 광고별 일별 성과
-      html += this.formatAdsDailyHtml(campaignAds);
+      html += this.formatAdsDailyHtml(campaignAds, tableColumns, isClientReport);
       
       // 캠페인 섹션 닫기
       html += `
@@ -864,6 +912,33 @@ export class UnifiedSearchService {
       tiktok: 'TikTok Ads'
     };
 
+    // 제목 결정
+    const reportTitle = command.customTitle || '성과 리포트';
+    const isClientReport = command.reportType === 'client';
+
+    // 리포트 타입별 지표 컬럼 정의
+    const getTableColumns = (isClient) => {
+      if (isClient) {
+        // 광고주용: 비용 관련 지표 제외
+        return {
+          summary: ['노출수', '클릭수', 'CTR', '전환수', '전환율'],
+          campaign: ['노출수', '클릭수', 'CTR', '전환수', '전환율'],
+          daily: ['날짜', '노출수', '클릭수', 'CTR', '전일 대비 변화'],
+          ads: ['광고명', '노출수', '클릭수', 'CTR', '전환수', '전환율']
+        };
+      } else {
+        // 내부용: 모든 지표 포함
+        return {
+          summary: ['광고비', '노출수', '클릭수', 'CTR', 'CPC', 'CPM', '전환수', '전환율', '전환단가'],
+          campaign: ['광고비', '노출수', '클릭수', 'CTR', 'CPC', 'CPM', '전환수', '전환율', '전환단가'],
+          daily: ['날짜', '광고비', '노출수', '클릭수', 'CTR', 'CPM', 'CPC', '전일 대비 변화'],
+          ads: ['광고명', '광고비', '노출수', '클릭수', 'CTR', 'CPC', 'CPM', '전환수', '전환율', '전환단가']
+        };
+      }
+    };
+
+    const tableColumns = getTableColumns(isClientReport);
+
     let totalCampaigns = 0;
     let totalAds = 0;
     let totalSpend = 0;
@@ -888,7 +963,7 @@ export class UnifiedSearchService {
       } else if (campaigns.length === 0) {
         bodyHtml += '<p class="no-data">매칭되는 캠페인이 없습니다.</p>';
       } else {
-        bodyHtml += this.formatCampaignTableHtml(campaigns, ads, platform);
+        bodyHtml += this.formatCampaignTableHtml(campaigns, ads, platform, tableColumns, isClientReport);
         
         // 집계 업데이트
         totalCampaigns += campaigns.length;
@@ -906,14 +981,28 @@ export class UnifiedSearchService {
     // 전체 요약
     const overallCTR = totalImpressions > 0 ? (totalClicks / totalImpressions * 100).toFixed(2) : '0.00';
     
-    const summaryHtml = totalCampaigns > 0 ? `
-    <div class="summary-box">
-      <h3>📊 전체 요약</h3>
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+    // 전체 요약 생성 (리포트 타입에 따라 다르게)
+    let summaryContent = '';
+    if (totalCampaigns > 0) {
+      summaryContent = `
         <div>
           <div>총 캠페인: <span class="metric-value">${totalCampaigns}개</span></div>
           <div>총 광고: <span class="metric-value">${totalAds}개</span></div>
+        </div>`;
+      
+      if (isClientReport) {
+        // 광고주용: 비용 정보 제외
+        summaryContent += `
+        <div>
+          <div>총 노출수: <span class="metric-value">${totalImpressions.toLocaleString()}</span></div>
+          <div>총 클릭수: <span class="metric-value">${totalClicks.toLocaleString()}</span></div>
         </div>
+        <div>
+          <div>전체 CTR: <span class="metric-value">${overallCTR}%</span></div>
+        </div>`;
+      } else {
+        // 내부용: 모든 정보 포함
+        summaryContent += `
         <div>
           <div>총 광고비: <span class="metric-value">₩${totalSpend.toLocaleString()}</span></div>
           <div>총 노출수: <span class="metric-value">${totalImpressions.toLocaleString()}</span></div>
@@ -921,7 +1010,15 @@ export class UnifiedSearchService {
         <div>
           <div>총 클릭수: <span class="metric-value">${totalClicks.toLocaleString()}</span></div>
           <div>전체 CTR: <span class="metric-value">${overallCTR}%</span></div>
-        </div>
+        </div>`;
+      }
+    }
+    
+    const summaryHtml = totalCampaigns > 0 ? `
+    <div class="summary-box">
+      <h3>📊 전체 요약</h3>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+        ${summaryContent}
       </div>
     </div>` : '<p class="no-data">조건에 맞는 캠페인을 찾을 수 없습니다.</p>';
 
@@ -934,12 +1031,12 @@ export class UnifiedSearchService {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>캠페인 성과 리포트</title>
+  <title>${reportTitle}</title>
   ${this.generateCssStyles()}
 </head>
 <body>
   <div class="container">
-    <h1>캠페인 성과 리포트</h1>
+    <h1>${reportTitle}</h1>
     
     <div class="search-info">
       <strong>검색 조건:</strong><br>

@@ -1,7 +1,7 @@
 import axios from 'axios';
 import 'dotenv/config';
 import { getDateRange, getPeriodText } from '../utils/date-utils.js';
-import { formatNumber, formatCurrency, formatPercent, parseActions, parseConversions, standardizeMetrics, formatPerformanceSummary, CONVERSION_ACTIONS, CUSTOM_CONVERSION_PATTERNS } from '../utils/format-utils.js';
+import { formatNumber, formatCurrency, formatPercent, parseActions, parseConversions, parseResults, standardizeMetrics, formatPerformanceSummary, CONVERSION_ACTIONS, CUSTOM_CONVERSION_PATTERNS } from '../utils/format-utils.js';
 import { exchangeRateService } from '../utils/exchange-rate-service.js';
 
 const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
@@ -423,7 +423,7 @@ export class FacebookAdsService {
         access_token: ACCESS_TOKEN,
         level: 'campaign',
         time_range: JSON.stringify({ since, until }),
-        fields: 'campaign_id,campaign_name,impressions,clicks,spend,ctr,cpc,cpm,conversions,actions'
+        fields: 'campaign_id,campaign_name,impressions,clicks,spend,ctr,cpc,cpm,results,actions'
       };
 
       if (campaignIds && campaignIds.length > 0) {
@@ -491,6 +491,7 @@ export class FacebookAdsService {
     
     data.forEach(item => {
       const actions = parseActions(item.actions);
+      const results = parseResults(item.results);
       totalActions.lead += actions.lead;
       totalActions.link_click += actions.link_click;
       totalActions.landing_page_view += actions.landing_page_view;
@@ -501,7 +502,7 @@ export class FacebookAdsService {
       totalActions.subscribe += actions.subscribe;
       totalActions.start_trial += actions.start_trial;
       totalActions.total_actions += actions.total_actions;
-      totalActions.total_conversions += actions.total_conversions;
+      totalActions.total_conversions += results.total_conversions;
     });
     
     const overallCTR = totalImpressions > 0 ? (totalClicks / totalImpressions * 100).toFixed(2) : 0;
@@ -536,11 +537,13 @@ export class FacebookAdsService {
       const ctr = campaign.ctr ? parseFloat(campaign.ctr).toFixed(2) : '0.00';
       const cpc = campaign.cpc ? parseFloat(campaign.cpc).toFixed(2) : '0.00';
       const actions = parseActions(campaign.actions);
+      const results = parseResults(campaign.results);
 
       result += `${index + 1}. **${campaign.campaign_name}** (ID: ${campaign.campaign_id})\n`;
       result += `   💰 지출: ${formatCurrency(spend)}\n`;
       result += `   👁️ 노출: ${formatNumber(impressions)}\n`;
       result += `   🖱️ 클릭: ${formatNumber(clicks)}\n`;
+      result += `   🎯 전환: ${results.total_conversions}\n`;
       result += `   📈 CTR: ${ctr}%\n`;
       result += `   💵 CPC: ${formatCurrency(cpc)}\n`;
       if (actions.total_actions > 0) {
@@ -747,7 +750,7 @@ export class FacebookAdsService {
       access_token: ACCESS_TOKEN,
       level: 'adset',
       time_range: JSON.stringify({ since, until }),
-      fields: 'adset_id,adset_name,campaign_name,impressions,clicks,spend,ctr,cpc,cpm,conversions,actions'
+      fields: 'adset_id,adset_name,campaign_name,impressions,clicks,spend,ctr,cpc,cpm,results,actions'
     };
 
     const filters = [];
@@ -796,11 +799,13 @@ export class FacebookAdsService {
       purchase: 0,
       add_to_cart: 0,
       complete_registration: 0,
-      total_actions: 0
+      total_actions: 0,
+      total_conversions: 0
     };
     
     data.forEach(item => {
       const actions = parseActions(item.actions);
+      const results = parseResults(item.results);
       totalActions.lead += actions.lead;
       totalActions.link_click += actions.link_click;
       totalActions.landing_page_view += actions.landing_page_view;
@@ -808,6 +813,7 @@ export class FacebookAdsService {
       totalActions.add_to_cart += actions.add_to_cart;
       totalActions.complete_registration += actions.complete_registration;
       totalActions.total_actions += actions.total_actions;
+      totalActions.total_conversions += results.total_conversions;
     });
     
     const overallCTR = totalImpressions > 0 ? (totalClicks / totalImpressions * 100).toFixed(2) : 0;
@@ -818,6 +824,7 @@ export class FacebookAdsService {
     result += `💰 총 지출: ${formatCurrency(totalSpend)}\n`;
     result += `👁️ 노출수: ${formatNumber(totalImpressions)}\n`;
     result += `🖱️ 클릭수: ${formatNumber(totalClicks)}\n`;
+    result += `🎯 전환수: ${formatNumber(totalActions.total_conversions)}\n`;
     result += `📈 CTR: ${overallCTR}%\n`;
     result += `💵 CPC: ${formatCurrency(overallCPC)}\n`;
     result += `📊 **Actions 상세:**\n`;
@@ -837,12 +844,14 @@ export class FacebookAdsService {
       const ctr = adset.ctr ? parseFloat(adset.ctr).toFixed(2) : '0.00';
       const cpc = adset.cpc ? parseFloat(adset.cpc).toFixed(2) : '0.00';
       const actions = parseActions(adset.actions);
+      const results = parseResults(adset.results);
 
       result += `${index + 1}. **${adset.adset_name}**\n`;
       result += `   📢 캠페인: ${adset.campaign_name}\n`;
       result += `   💰 지출: ${formatCurrency(spend)}\n`;
       result += `   👁️ 노출: ${formatNumber(impressions)}\n`;
       result += `   🖱️ 클릭: ${formatNumber(clicks)}\n`;
+      result += `   🎯 전환: ${results.total_conversions}\n`;
       result += `   📈 CTR: ${ctr}%\n`;
       result += `   💵 CPC: ${formatCurrency(cpc)}\n`;
       if (actions.total_actions > 0) {
@@ -976,7 +985,7 @@ export class FacebookAdsService {
       level: 'ad',
       limit: 100,
       time_range: JSON.stringify({ since, until }),
-      fields: 'ad_id,ad_name,campaign_name,adset_name,impressions,clicks,spend,ctr,cpc,cpm,conversions,actions'
+      fields: 'ad_id,ad_name,campaign_name,adset_name,impressions,clicks,spend,ctr,cpc,cpm,results,actions'
     };
 
     const filters = [];
@@ -1079,7 +1088,10 @@ export class FacebookAdsService {
     const totalSpend = data.reduce((sum, item) => sum + parseFloat(item.spend || 0), 0);
     const totalImpressions = data.reduce((sum, item) => sum + parseInt(item.impressions || 0), 0);
     const totalClicks = data.reduce((sum, item) => sum + parseInt(item.clicks || 0), 0);
-    const totalConversions = data.reduce((sum, item) => sum + parseInt(item.conversions || 0), 0);
+    const totalConversions = data.reduce((sum, item) => {
+      const results = parseResults(item.results);
+      return sum + results.total_conversions;
+    }, 0);
     
     // actions 데이터 집계
     const totalActions = {
@@ -1106,6 +1118,7 @@ export class FacebookAdsService {
     const overallCTR = totalImpressions > 0 ? (totalClicks / totalImpressions * 100).toFixed(2) : 0;
     const overallCPC = totalClicks > 0 ? (totalSpend / totalClicks).toFixed(2) : 0;
     const overallCPM = totalImpressions > 0 ? (totalSpend / totalImpressions * 1000).toFixed(2) : 0;
+    const overallConversionRate = totalClicks > 0 ? (totalConversions / totalClicks * 100).toFixed(2) : '0.00';
 
     let result = `📊 **${periodText} Facebook 광고 성과 분석**\n\n`;
     result += `🎯 **전체 성과 요약**\n`;
@@ -1131,11 +1144,12 @@ export class FacebookAdsService {
       const spend = parseFloat(ad.spend || 0);
       const impressions = parseInt(ad.impressions || 0);
       const clicks = parseInt(ad.clicks || 0);
-      const conversions = ad.conversions ? parseConversions(ad.conversions).total_conversions : 0;
       const ctr = ad.ctr ? parseFloat(ad.ctr).toFixed(2) : '0.00';
       const cpc = ad.cpc ? parseFloat(ad.cpc).toFixed(2) : '0.00';
       const cpm = ad.cpm ? parseFloat(ad.cpm).toFixed(2) : '0.00';
       const actions = parseActions(ad.actions);
+      const results = parseResults(ad.results);
+      const conversions = results.total_conversions;
 
       result += `${index + 1}. **${ad.ad_name}** (ID: ${ad.ad_id})\n`;
       result += `   📢 캠페인: ${ad.campaign_name}\n`;
@@ -1578,7 +1592,7 @@ export class FacebookAdsService {
           const url = `${BASE_URL}/act_${account.account_id}/insights`;
           const params = {
             access_token: ACCESS_TOKEN,
-            fields: 'ad_id,ad_name,campaign_id,campaign_name,spend,impressions,clicks,ctr,cpc,cpm,conversions,actions',
+            fields: 'ad_id,ad_name,campaign_id,campaign_name,spend,impressions,clicks,ctr,cpc,cpm,results,actions',
             time_range: JSON.stringify({
               since: startDate,
               until: endDate
@@ -1605,8 +1619,8 @@ export class FacebookAdsService {
             const impressions = parseInt(ad.impressions || 0);
             const clicks = parseInt(ad.clicks || 0);
             
-            // Conversions에서 전환 데이터 추출 (conversions 필드 우선 사용)
-            const conversions = ad.conversions ? parseConversions(ad.conversions).total_conversions : 0;
+            // Results에서 전환 데이터 추출 (results 필드 사용)
+            const conversions = ad.results ? parseResults(ad.results).total_conversions : 0;
             
             if (!adGroups[adId]) {
               adGroups[adId] = {

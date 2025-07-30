@@ -51,7 +51,43 @@ export const CUSTOM_CONVERSION_PATTERNS = [
 ];
 
 /**
- * Facebook Conversions 데이터 파싱
+ * Facebook Results 데이터 파싱 (새로운 API 구조)
+ * @param {Array} results - Facebook results 배열
+ * @returns {Object} 파싱된 전환 데이터
+ */
+export function parseResults(results) {
+  if (!results || !Array.isArray(results)) {
+    return {
+      total_conversions: 0
+    };
+  }
+  
+  let totalConversions = 0;
+  
+  // results 배열 파싱
+  results.forEach(result => {
+    if (result && typeof result === 'object' && result.values && Array.isArray(result.values)) {
+      // values 배열에서 전환수 추출
+      result.values.forEach(valueObj => {
+        if (valueObj && typeof valueObj === 'object' && valueObj.value !== undefined) {
+          const value = parseInt(valueObj.value);
+          
+          // 숫자가 아닌 경우 0으로 처리
+          if (!isNaN(value) && value >= 0) {
+            totalConversions += value;
+          }
+        }
+      });
+    }
+  });
+  
+  return {
+    total_conversions: totalConversions
+  };
+}
+
+/**
+ * Facebook Conversions 데이터 파싱 (기존 호환성 유지)
  * @param {Array} conversions - Facebook conversions 배열
  * @returns {Object} 파싱된 전환 데이터
  */

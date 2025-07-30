@@ -945,6 +945,16 @@ export class UnifiedSearchService {
     let totalImpressions = 0;
     let totalClicks = 0;
 
+    // Facebook 환율 정보 가져오기
+    let exchangeInfo = null;
+    if (detailedResults.facebook && this.services.facebook) {
+      try {
+        exchangeInfo = await this.services.facebook.getExchangeInfo();
+      } catch (error) {
+        console.error('환율 정보 조회 실패:', error.message);
+      }
+    }
+
     let bodyHtml = '';
 
     // 매체별 결과 처리
@@ -1089,6 +1099,7 @@ export class UnifiedSearchService {
     
     <div style="text-align: center; margin-top: 30px; color: #7f8c8d; font-size: 12px;">
       리포트 생성 시간: ${new Date().toLocaleString('ko-KR')}
+      ${exchangeInfo ? `<br>환율 정보: 1 USD = ₩${exchangeInfo.rate.toLocaleString()} (${exchangeInfo.date}, ${exchangeInfo.source === 'koreaexim_api' ? '한국수출입은행' : '기본값'})` : ''}
     </div>
   </div>
 

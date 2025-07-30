@@ -2,6 +2,7 @@ import axios from 'axios';
 import 'dotenv/config';
 import { getDateRange, getPeriodText } from '../utils/date-utils.js';
 import { formatNumber, formatCurrency, formatPercent, parseActions, parseConversions, standardizeMetrics, formatPerformanceSummary, CONVERSION_ACTIONS, CUSTOM_CONVERSION_PATTERNS } from '../utils/format-utils.js';
+import { exchangeRateService } from '../utils/exchange-rate-service.js';
 
 const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
 const AD_ACCOUNT_ID = process.env.META_AD_ACCOUNT_ID;
@@ -10,6 +11,7 @@ const BASE_URL = 'https://graph.facebook.com/v22.0';
 export class FacebookAdsService {
   constructor() {
     this.platform = 'facebook';
+    this.exchangeRate = null; // 환율 캐시
   }
 
   /**
@@ -574,6 +576,66 @@ export class FacebookAdsService {
         }
       ]
     };
+  }
+
+  /**
+   * 환율 정보 초기화 및 캐시
+   */
+  async initializeExchangeRate() {
+    try {
+      if (!this.exchangeRate) {
+        this.exchangeRate = await exchangeRateService.getUsdRate();
+        console.error(`Facebook 서비스: USD 환율 로드됨 (${this.exchangeRate})`);
+      }
+      return this.exchangeRate;
+    } catch (error) {
+      console.error('환율 초기화 실패:', error.message);
+      this.exchangeRate = 1300; // 기본값
+      return this.exchangeRate;
+    }
+  }
+
+  /**
+   * USD를 KRW로 환산
+   */
+  async convertUsdToKrw(usdAmount) {
+    if (!usdAmount || usdAmount === 0) return 0;
+    
+    const rate = await this.initializeExchangeRate();
+    return Math.round(usdAmount * rate);
+  }
+
+  /**
+   * Facebook 광고 데이터에 환율 적용
+   */
+  async applyExchangeRateToAdData(adData) {
+    if (!adData) return adData;
+
+    const convertedData = { ...adData };
+    
+    // 광고비 환산
+    if (convertedData.spend) {
+      convertedData.spend = await this.convertUsdToKrw(parseFloat(convertedData.spend));
+    }
+
+    // 일별 데이터 환산
+    if (convertedData.dailyData && Array.isArray(convertedData.dailyData)) {
+      for (let dailyEntry of convertedData.dailyData) {
+        if (dailyEntry.spend) {
+          dailyEntry.spend = await this.convertUsdToKrw(parseFloat(dailyEntry.spend));
+        }
+      }
+    }
+
+    return convertedData;
+  }
+
+  /**
+   * 환율 정보 반환
+   */
+  async getExchangeInfo() {
+    await this.initializeExchangeRate();
+    return await exchangeRateService.getExchangeInfo();
   }
 
   async getCampaignList(statusFilter) {
@@ -1466,7 +1528,17 @@ export class FacebookAdsService {
 
       console.error(`Facebook: 총 ${allCampaigns.length}개 캠페인 발견`);
       
-      return allCampaigns.sort((a, b) => parseFloat(b.spend) - parseFloat(a.spend));
+      // 환율 적용하여 USD → KRW 환산
+      const convertedCampaigns = [];
+      for (const campaign of allCampaigns) {
+        const krwSpend = await this.convertUsdToKrw(parseFloat(campaign.spend));
+        convertedCampaigns.push({
+          ...campaign,
+          spend: krwSpend
+        });
+      }
+      
+      return convertedCampaigns.sort((a, b) => parseFloat(b.spend) - parseFloat(a.spend));
 
     } catch (error) {
       console.error('Facebook 캠페인 목록 조회 실패:', error.message);
@@ -1603,7 +1675,26 @@ export class FacebookAdsService {
 
       console.error(`Facebook: 총 ${allAds.length}개 광고 발견`);
       
-      return allAds.sort((a, b) => parseFloat(b.spend) - parseFloat(a.spend));
+      // 환율 적용하여 USD → KRW 환산
+      const convertedAds = [];
+      for (const ad of allAds) {
+        const convertedAd = await this.applyExchangeRateToAdData(ad);
+        
+        // 환산된 KRW 금액으로 비율 지표 재계산
+        const krwSpend = convertedAd.spend;
+        const impressions = parseInt(ad.impressions);
+        const clicks = parseInt(ad.clicks);
+        const conversions = parseInt(ad.conversions);
+        
+        convertedAd.cpc = clicks > 0 ? (krwSpend / clicks).toFixed(2) : '0.00';
+        convertedAd.cpm = impressions > 0 ? (krwSpend / impressions * 1000).toFixed(2) : '0.00';
+        convertedAd.cost_per_conversion = conversions > 0 ? (krwSpend / conversions).toFixed(2) : '0.00';
+        convertedAd.costPerConversion = conversions > 0 ? (krwSpend / conversions).toFixed(2) : '0.00';
+        
+        convertedAds.push(convertedAd);
+      }
+      
+      return convertedAds.sort((a, b) => parseFloat(b.spend) - parseFloat(a.spend));
 
     } catch (error) {
       console.error('Facebook 광고별 성과 조회 실패:', error.message);

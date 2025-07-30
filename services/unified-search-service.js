@@ -316,26 +316,63 @@ export class UnifiedSearchService {
         margin-bottom: 30px;
       }
       .search-info strong { color: #2c3e50; }
+      .table-wrapper { 
+        overflow-x: auto; 
+        margin: 20px 0; 
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      }
       table { 
         border-collapse: collapse; 
         width: 100%; 
-        margin: 20px 0; 
+        min-width: 800px;
         background: white;
+        table-layout: auto;
       }
       th, td { 
         border: 1px solid #ddd; 
         padding: 12px 8px; 
         text-align: left; 
         font-size: 14px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 200px;
       }
       th { 
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
         font-weight: bold; 
         text-align: center;
+        position: sticky;
+        top: 0;
+        z-index: 10;
       }
       tr:nth-child(even) { background-color: #f8f9fa; }
       tr:hover { background-color: #e3f2fd; }
+      
+      /* 모바일 반응형 */
+      @media (max-width: 768px) {
+        .container { margin: 10px; padding: 15px; }
+        .table-wrapper { margin: 15px 0; }
+        table { min-width: 600px; }
+        th, td { 
+          padding: 8px 4px; 
+          font-size: 12px;
+          max-width: 120px;
+        }
+      }
+      
+      /* 테블릿 반응형 */
+      @media (max-width: 1024px) {
+        .table-wrapper { margin: 18px 0; }
+        table { min-width: 700px; }
+        th, td { 
+          padding: 10px 6px; 
+          font-size: 13px;
+          max-width: 160px;
+        }
+      }
       .increase { 
         color: #27ae60; 
         font-weight: bold; 
@@ -553,18 +590,20 @@ export class UnifiedSearchService {
     return `
     <div class="campaign-summary">
       <h4>📊 캠페인 합산 성과 (${dateRange})</h4>
-      <table>
-        <thead>
-          <tr>
-            ${headerHtml}
-          </tr>
-        </thead>
-        <tbody>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              ${headerHtml}
+            </tr>
+          </thead>
+          <tbody>
           <tr>
             ${dataHtml}
           </tr>
         </tbody>
       </table>
+      </div>
     </div>`;
   }
 
@@ -584,13 +623,14 @@ export class UnifiedSearchService {
     let html = `
     <div class="campaign-daily">
       <h4>📈 캠페인 일별 성과</h4>
-      <table>
-        <thead>
-          <tr>
-            ${headerHtml}
-          </tr>
-        </thead>
-        <tbody>`;
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              ${headerHtml}
+            </tr>
+          </thead>
+          <tbody>`;
 
     trendsData.forEach(dayData => {
       const { derivedMetrics, trends } = dayData;
@@ -651,7 +691,7 @@ export class UnifiedSearchService {
       </tr>`;
     });
 
-    html += '</tbody></table></div>';
+    html += '</tbody></table></div></div>';
     return html;
   }
 
@@ -681,13 +721,14 @@ export class UnifiedSearchService {
       html += `
       <div style="margin: 20px 0;">
         <h5 style="color: #2c3e50; margin-bottom: 10px;">🎯 ${ad.ad_name || ad.name}</h5>
-        <table style="font-size: 13px;">
-          <thead>
-            <tr>
-              ${adsDailyHeaderHtml}
-            </tr>
-          </thead>
-          <tbody>`;
+        <div class="table-wrapper">
+          <table style="font-size: 13px;">
+            <thead>
+              <tr>
+                ${adsDailyHeaderHtml}
+              </tr>
+            </thead>
+            <tbody>`;
 
       trendsData.forEach(dayData => {
         const { derivedMetrics, trends } = dayData;
@@ -748,7 +789,7 @@ export class UnifiedSearchService {
         </tr>`;
       });
 
-      html += '</tbody></table></div>';
+      html += '</tbody></table></div></div>';
     });
 
     html += '</div>';
@@ -798,13 +839,14 @@ export class UnifiedSearchService {
       html += `
       <div class="ads-summary">
         <h4>🎯 광고별 합산 성과</h4>
-        <table>
-          <thead>
-            <tr>
-              ${adsHeaderHtml}
-            </tr>
-          </thead>
-          <tbody>`;
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                ${adsHeaderHtml}
+              </tr>
+            </thead>
+            <tbody>`;
 
       if (campaignAds.length === 0) {
         html += `<tr><td colspan="${tableColumns.ads.length}" class="no-data">광고 데이터가 없습니다.</td></tr>`;
@@ -867,7 +909,7 @@ export class UnifiedSearchService {
         });
       }
 
-      html += '</tbody></table></div>';
+      html += '</tbody></table></div></div>';
 
       // 4. 광고별 일별 성과
       html += this.formatAdsDailyHtml(campaignAds, tableColumns, isClientReport);
@@ -889,19 +931,20 @@ export class UnifiedSearchService {
     let html = `
     <div class="daily-trends">
       <h4>📈 일별 성과 추이</h4>
-      <table>
-        <thead>
-          <tr>
-            <th>날짜</th>
-            <th>광고비</th>
-            <th>노출수</th>
-            <th>클릭수</th>
-            <th>CTR</th>
-            <th>CPM</th>
-            <th>CPC</th>
-          </tr>
-        </thead>
-        <tbody>`;
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>날짜</th>
+              <th>광고비</th>
+              <th>노출수</th>
+              <th>클릭수</th>
+              <th>CTR</th>
+              <th>CPM</th>
+              <th>CPC</th>
+            </tr>
+          </thead>
+          <tbody>`;
 
     trendsData.forEach(dayData => {
       const { derivedMetrics, trends } = dayData;
@@ -929,7 +972,7 @@ export class UnifiedSearchService {
       </tr>`;
     });
 
-    html += '</tbody></table></div>';
+    html += '</tbody></table></div></div>';
     return html;
   }
 
@@ -1419,18 +1462,19 @@ export class UnifiedSearchService {
   <h1>📊 HTML 출력 렌더링 테스트</h1>
   
   <h2>기본 테이블 테스트</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>날짜</th>
-        <th>광고비</th>
-        <th>노출수</th>
-        <th>클릭수</th>
-        <th>CTR</th>
-        <th>변화</th>
-      </tr>
-    </thead>
-    <tbody>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>날짜</th>
+          <th>광고비</th>
+          <th>노출수</th>
+          <th>클릭수</th>
+          <th>CTR</th>
+          <th>변화</th>
+        </tr>
+      </thead>
+      <tbody>
       <tr class="metric-row">
         <td>2025-07-21</td>
         <td>₩50,000</td>
@@ -1457,6 +1501,7 @@ export class UnifiedSearchService {
       </tr>
     </tbody>
   </table>
+  </div>
 
   <h2>스타일 테스트</h2>
   <p>이 테스트는 다음을 확인합니다:</p>

@@ -156,7 +156,7 @@ export class UnifiedSearchService {
       const detailedResults = await this.fetchAdLevelData(filteredResults, command);
       
       // 5단계: 결과 포맷팅
-      return this.formatSearchResults(detailedResults, command, outputFormat);
+      return await this.formatSearchResults(detailedResults, command, outputFormat);
 
     } catch (error) {
       console.error('Structured search execution error:', error.message);
@@ -904,7 +904,7 @@ export class UnifiedSearchService {
   /**
    * HTML 리포트 생성
    */
-  generateHtmlReport(detailedResults, command) {
+  async generateHtmlReport(detailedResults, command) {
     const summary = formatCommandSummary(command);
     const platformNames = {
       facebook: 'Facebook Ads',
@@ -1122,9 +1122,9 @@ export class UnifiedSearchService {
   /**
    * 검색 결과 포맷팅
    */
-  formatSearchResults(detailedResults, command, outputFormat = 'text') {
+  async formatSearchResults(detailedResults, command, outputFormat = 'text') {
     if (outputFormat === 'html') {
-      return this.generateHtmlReport(detailedResults, command);
+      return await this.generateHtmlReport(detailedResults, command);
     }
 
     // 기존 텍스트 출력 로직
@@ -1477,7 +1477,7 @@ export class UnifiedSearchService {
       const detailedResults = await this.fetchAdLevelData(filteredResults, command);
       
       // 3. HTML 생성
-      const htmlReport = this.generateHtmlReport(detailedResults, command);
+      const htmlReport = await this.generateHtmlReport(detailedResults, command);
       const htmlContent = htmlReport.content[0].text;
       
       // 4. 파일명 생성

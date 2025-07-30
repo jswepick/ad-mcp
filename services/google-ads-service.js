@@ -1735,6 +1735,48 @@ export class GoogleAdsService {
   }
 
   /**
+   * 안전한 광고 ID 추출 함수
+   */
+  safeExtractAdId(row) {
+    // 모든 가능한 경로 시도
+    const possiblePaths = [
+      row.adGroupAd?.ad?.id,
+      row.ad_group_ad?.ad?.id,
+      row.ad?.id,
+      row.id
+    ];
+    
+    for (const id of possiblePaths) {
+      if (id !== null && id !== undefined) {
+        return id.toString().trim();
+      }
+    }
+    
+    console.error('🚨 광고 ID 추출 실패:', JSON.stringify(row, null, 2));
+    return null;
+  }
+
+  /**
+   * 안전한 광고명 추출 함수
+   */
+  safeExtractAdName(row, adId) {
+    const possibleNames = [
+      row.adGroupAd?.ad?.name,
+      row.ad_group_ad?.ad?.name,
+      row.ad?.name,
+      row.name
+    ];
+    
+    for (const name of possibleNames) {
+      if (name && name.trim()) {
+        return name.trim();
+      }
+    }
+    
+    return `Ad ${adId}`;
+  }
+
+  /**
    * 특정 캠페인들의 광고별 상세 성과 조회
    */
   async getAdLevelPerformance(campaignIds, startDate, endDate) {
@@ -1776,34 +1818,57 @@ export class GoogleAdsService {
         if (resourceResponse.results && resourceResponse.results.length > 0) {
           console.error(`✅ Resource Name 방식 성공: ${resourceResponse.results.length}개 광고`);
           
-          // 일별 데이터를 광고별로 그룹화 및 집계
-          const adGroups = {};
+          // TikTok 방식의 Map 기반 집계 (안전함)
+          const adMap = new Map();
           
-          resourceResponse.results.forEach(row => {
-            const adId = row.adGroupAd.ad.id.toString();
-            const date = row.segments.date;
-            const costMicros = row.metrics.costMicros || 0;
-            const impressions = parseInt(row.metrics.impressions || 0);
-            const clicks = parseInt(row.metrics.clicks || 0);
-            const conversions = parseFloat(row.metrics.conversions || 0);
+          console.error(`🔍 [Google Ads] 집계 전 총 ${resourceResponse.results.length}개 행`);
+          
+          resourceResponse.results.forEach((row, index) => {
+            const adId = this.safeExtractAdId(row);
+            if (!adId) {
+              console.warn(`⚠️ 행 ${index}: 광고 ID 추출 실패, 건너뜀`);
+              return;
+            }
             
-            if (!adGroups[adId]) {
-              adGroups[adId] = {
+            const date = row.segments?.date;
+            if (!date) {
+              console.warn(`⚠️ 행 ${index}: 날짜 정보 없음, 건너뜀`);
+              return;
+            }
+            
+            const costMicros = row.metrics?.costMicros || 0;
+            const impressions = parseInt(row.metrics?.impressions || 0);
+            const clicks = parseInt(row.metrics?.clicks || 0);
+            const conversions = parseFloat(row.metrics?.conversions || 0);
+            
+            if (!adMap.has(adId)) {
+              adMap.set(adId, {
                 ad_id: adId,
-                ad_name: row.adGroupAd.ad.name || `Ad ${adId}`,
-                name: row.adGroupAd.ad.name || `Ad ${adId}`,
-                campaign_id: row.campaign.id.toString(),
-                campaign_name: row.campaign.name,
+                ad_name: this.safeExtractAdName(row, adId),
+                name: this.safeExtractAdName(row, adId),
+                campaign_id: row.campaign?.id?.toString() || 'unknown',
+                campaign_name: row.campaign?.name || 'Unknown Campaign',
                 dailyData: [],
+                seenDates: new Set(), // 중복 날짜 방지
                 totalSpend: 0,
                 totalImpressions: 0,
                 totalClicks: 0,
                 totalConversions: 0
-              };
+              });
             }
             
+            const adData = adMap.get(adId);
+            
+            // 중복 날짜 체크
+            if (adData.seenDates.has(date)) {
+              console.warn(`⚠️ 중복 날짜 발견: 광고 ${adId}, 날짜 ${date} - 건너뜀`);
+              return;
+            }
+            
+            adData.seenDates.add(date);
+            
             // 일별 데이터 추가
-            adGroups[adId].dailyData.push({
+            adData.dailyData.push({
               date: date,
               spend: (costMicros / 1000000),
               impressions: impressions,
@@ -1812,31 +1877,44 @@ export class GoogleAdsService {
             });
             
             // 총합 계산
-            adGroups[adId].totalSpend += (costMicros / 1000000);
-            adGroups[adId].totalImpressions += impressions;
-            adGroups[adId].totalClicks += clicks;
-            adGroups[adId].totalConversions += conversions;
+            adData.totalSpend += (costMicros / 1000000);
+            adData.totalImpressions += impressions;
+            adData.totalClicks += clicks;
+            adData.totalConversions += conversions;
           });
           
-          // 최종 결과 생성 (비율 지표 재계산)
-          return Object.values(adGroups).map(ad => ({
-            ad_id: ad.ad_id,
-            ad_name: ad.ad_name,
-            name: ad.name,
-            campaign_id: ad.campaign_id,
-            campaign_name: ad.campaign_name,
-            spend: ad.totalSpend.toFixed(2),
-            impressions: ad.totalImpressions.toString(),
-            clicks: ad.totalClicks.toString(),
-            ctr: ad.totalImpressions > 0 ? (ad.totalClicks / ad.totalImpressions * 100).toFixed(2) : '0.00',
-            cpc: ad.totalClicks > 0 ? (ad.totalSpend / ad.totalClicks).toFixed(2) : '0.00',
-            cpm: ad.totalImpressions > 0 ? (ad.totalSpend / ad.totalImpressions * 1000).toFixed(2) : '0.00',
-            conversions: ad.totalConversions.toString(),
-            cost_per_conversion: ad.totalConversions > 0 ? (ad.totalSpend / ad.totalConversions).toFixed(2) : '0.00',
-            costPerConversion: ad.totalConversions > 0 ? (ad.totalSpend / ad.totalConversions).toFixed(2) : '0.00',
-            conversion_rate: ad.totalClicks > 0 ? (ad.totalConversions / ad.totalClicks * 100).toFixed(2) : '0.00',
-            dailyData: ad.dailyData.sort((a, b) => a.date.localeCompare(b.date))
-          }));
+          // Map에서 최종 결과 생성 및 검증
+          const finalResults = Array.from(adMap.values()).map(ad => {
+            // seenDates Set 제거 (직렬화 불가능하므로)
+            delete ad.seenDates;
+            
+            return {
+              ad_id: ad.ad_id,
+              ad_name: ad.ad_name,
+              name: ad.name,
+              campaign_id: ad.campaign_id,
+              campaign_name: ad.campaign_name,
+              spend: ad.totalSpend.toFixed(2),
+              impressions: ad.totalImpressions.toString(),
+              clicks: ad.totalClicks.toString(),
+              ctr: ad.totalImpressions > 0 ? (ad.totalClicks / ad.totalImpressions * 100).toFixed(2) : '0.00',
+              cpc: ad.totalClicks > 0 ? (ad.totalSpend / ad.totalClicks).toFixed(2) : '0.00',
+              cpm: ad.totalImpressions > 0 ? (ad.totalSpend / ad.totalImpressions * 1000).toFixed(2) : '0.00',
+              conversions: ad.totalConversions.toString(),
+              cost_per_conversion: ad.totalConversions > 0 ? (ad.totalSpend / ad.totalConversions).toFixed(2) : '0.00',
+              costPerConversion: ad.totalConversions > 0 ? (ad.totalSpend / ad.totalConversions).toFixed(2) : '0.00',
+              conversion_rate: ad.totalClicks > 0 ? (ad.totalConversions / ad.totalClicks * 100).toFixed(2) : '0.00',
+              dailyData: ad.dailyData.sort((a, b) => a.date.localeCompare(b.date))
+            };
+          });
+          
+          // 최종 검증
+          console.error(`✅ [Google Ads] 집계 완료: ${adMap.size}개 고유 광고`);
+          finalResults.slice(0, 3).forEach((ad, index) => {
+            console.error(`📋 광고 ${index + 1}: ${ad.ad_name} (${ad.dailyData.length}일치 데이터)`);
+          });
+          
+          return finalResults;
         } else {
           console.error('❌ Resource Name 방식: 결과 없음, 클라이언트 필터링으로 폴백');
         }
@@ -1875,42 +1953,65 @@ export class GoogleAdsService {
       
       console.error(`📊 전체 ${fallbackResponse.results.length}개 광고 조회됨, 클라이언트 필터링 적용 중...`);
       
-      // 일별 데이터를 광고별로 그룹화 및 집계 (클라이언트 필터링)
-      const adGroups = {};
+      // TikTok 방식의 Map 기반 집계 (클라이언트 필터링)
+      const adMap = new Map();
       const targetCampaignIds = campaignIds.map(id => parseInt(id));
       
-      fallbackResponse.results.forEach(row => {
-        const campaignId = parseInt(row.campaign.id);
+      console.error(`🔍 [Google Ads] Fallback 집계 전 총 ${fallbackResponse.results.length}개 행`);
+      
+      fallbackResponse.results.forEach((row, index) => {
+        const campaignId = parseInt(row.campaign?.id || 0);
         
         // 캠페인 ID 필터링
         if (!targetCampaignIds.includes(campaignId)) {
           return;
         }
         
-        const adId = row.adGroupAd.ad.id.toString();
-        const date = row.segments.date;
-        const costMicros = row.metrics.costMicros || 0;
-        const impressions = parseInt(row.metrics.impressions || 0);
-        const clicks = parseInt(row.metrics.clicks || 0);
-        const conversions = parseFloat(row.metrics.conversions || 0);
+        const adId = this.safeExtractAdId(row);
+        if (!adId) {
+          console.warn(`⚠️ Fallback 행 ${index}: 광고 ID 추출 실패, 건너뜀`);
+          return;
+        }
         
-        if (!adGroups[adId]) {
-          adGroups[adId] = {
+        const date = row.segments?.date;
+        if (!date) {
+          console.warn(`⚠️ Fallback 행 ${index}: 날짜 정보 없음, 건너뜀`);
+          return;
+        }
+        
+        const costMicros = row.metrics?.costMicros || 0;
+        const impressions = parseInt(row.metrics?.impressions || 0);
+        const clicks = parseInt(row.metrics?.clicks || 0);
+        const conversions = parseFloat(row.metrics?.conversions || 0);
+        
+        if (!adMap.has(adId)) {
+          adMap.set(adId, {
             ad_id: adId,
-            ad_name: row.adGroupAd.ad.name || `Ad ${adId}`,
-            name: row.adGroupAd.ad.name || `Ad ${adId}`,
+            ad_name: this.safeExtractAdName(row, adId),
+            name: this.safeExtractAdName(row, adId),
             campaign_id: campaignId.toString(),
-            campaign_name: row.campaign.name,
+            campaign_name: row.campaign?.name || 'Unknown Campaign',
             dailyData: [],
+            seenDates: new Set(), // 중복 날짜 방지
             totalSpend: 0,
             totalImpressions: 0,
             totalClicks: 0,
             totalConversions: 0
-          };
+          });
         }
         
+        const adData = adMap.get(adId);
+        
+        // 중복 날짜 체크
+        if (adData.seenDates.has(date)) {
+          console.warn(`⚠️ Fallback 중복 날짜 발견: 광고 ${adId}, 날짜 ${date} - 건너뜀`);
+          return;
+        }
+        
+        adData.seenDates.add(date);
+        
         // 일별 데이터 추가
-        adGroups[adId].dailyData.push({
+        adData.dailyData.push({
           date: date,
           spend: (costMicros / 1000000),
           impressions: impressions,
@@ -1919,33 +2020,42 @@ export class GoogleAdsService {
         });
         
         // 총합 계산
-        adGroups[adId].totalSpend += (costMicros / 1000000);
-        adGroups[adId].totalImpressions += impressions;
-        adGroups[adId].totalClicks += clicks;
-        adGroups[adId].totalConversions += conversions;
+        adData.totalSpend += (costMicros / 1000000);
+        adData.totalImpressions += impressions;
+        adData.totalClicks += clicks;
+        adData.totalConversions += conversions;
       });
       
-      // 최종 결과 생성 (비율 지표 재계산)
-      const filteredAds = Object.values(adGroups).map(ad => ({
-        ad_id: ad.ad_id,
-        ad_name: ad.ad_name,
-        name: ad.name,
-        campaign_id: ad.campaign_id,
-        campaign_name: ad.campaign_name,
-        spend: ad.totalSpend.toFixed(2),
-        impressions: ad.totalImpressions.toString(),
-        clicks: ad.totalClicks.toString(),
-        ctr: ad.totalImpressions > 0 ? (ad.totalClicks / ad.totalImpressions * 100).toFixed(2) : '0.00',
-        cpc: ad.totalClicks > 0 ? (ad.totalSpend / ad.totalClicks).toFixed(2) : '0.00',
-        cpm: ad.totalImpressions > 0 ? (ad.totalSpend / ad.totalImpressions * 1000).toFixed(2) : '0.00',
-        conversions: ad.totalConversions.toString(),
-        cost_per_conversion: ad.totalConversions > 0 ? (ad.totalSpend / ad.totalConversions).toFixed(2) : '0.00',
-        costPerConversion: ad.totalConversions > 0 ? (ad.totalSpend / ad.totalConversions).toFixed(2) : '0.00',
-        conversion_rate: ad.totalClicks > 0 ? (ad.totalConversions / ad.totalClicks * 100).toFixed(2) : '0.00',
-        dailyData: ad.dailyData.sort((a, b) => a.date.localeCompare(b.date))
-      }));
+      // Map에서 최종 결과 생성 및 검증 (Fallback)
+      const filteredAds = Array.from(adMap.values()).map(ad => {
+        // seenDates Set 제거 (직렬화 불가능하므로)
+        delete ad.seenDates;
+        
+        return {
+          ad_id: ad.ad_id,
+          ad_name: ad.ad_name,
+          name: ad.name,
+          campaign_id: ad.campaign_id,
+          campaign_name: ad.campaign_name,
+          spend: ad.totalSpend.toFixed(2),
+          impressions: ad.totalImpressions.toString(),
+          clicks: ad.totalClicks.toString(),
+          ctr: ad.totalImpressions > 0 ? (ad.totalClicks / ad.totalImpressions * 100).toFixed(2) : '0.00',
+          cpc: ad.totalClicks > 0 ? (ad.totalSpend / ad.totalClicks).toFixed(2) : '0.00',
+          cpm: ad.totalImpressions > 0 ? (ad.totalSpend / ad.totalImpressions * 1000).toFixed(2) : '0.00',
+          conversions: ad.totalConversions.toString(),
+          cost_per_conversion: ad.totalConversions > 0 ? (ad.totalSpend / ad.totalConversions).toFixed(2) : '0.00',
+          costPerConversion: ad.totalConversions > 0 ? (ad.totalSpend / ad.totalConversions).toFixed(2) : '0.00',
+          conversion_rate: ad.totalClicks > 0 ? (ad.totalConversions / ad.totalClicks * 100).toFixed(2) : '0.00',
+          dailyData: ad.dailyData.sort((a, b) => a.date.localeCompare(b.date))
+        };
+      });
       
-      console.error(`✅ 클라이언트 필터링 완료: ${filteredAds.length}개 광고`);
+      // 최종 검증 (Fallback)
+      console.error(`✅ [Google Ads] Fallback 집계 완료: ${adMap.size}개 고유 광고`);
+      filteredAds.slice(0, 3).forEach((ad, index) => {
+        console.error(`📋 Fallback 광고 ${index + 1}: ${ad.ad_name} (${ad.dailyData.length}일치 데이터)`);
+      });
       
       return filteredAds;
       

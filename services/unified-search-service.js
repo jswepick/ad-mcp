@@ -566,13 +566,11 @@ export class UnifiedSearchService {
     // 테이블 데이터 생성 (리포트 타입에 따라)
     let dataHtml = '';
     if (isClientReport) {
-      // 광고주용: 비용 관련 정보 제외
+      // 광고주용: 비용 및 전환 관련 정보 제외
       dataHtml = `
         <td class="metric-value">${totalImpressions.toLocaleString()}</td>
         <td class="metric-value">${totalClicks.toLocaleString()}</td>
-        <td class="metric-value">${avgCtr}%</td>
-        <td class="metric-value">${totalConversions > 0 ? totalConversions.toLocaleString() : '-'}</td>
-        <td class="metric-value">${totalConversions > 0 ? conversionRate + '%' : '-'}</td>`;
+        <td class="metric-value">${avgCtr}%</td>`;
     } else {
       // 내부용: 모든 정보 포함
       dataHtml = `
@@ -650,14 +648,12 @@ export class UnifiedSearchService {
       const costPerConversion = derivedMetrics.cost_per_conversion || 0;
       
       if (isClientReport) {
-        // 광고주용: 비용 관련 정보 제외
+        // 광고주용: 비용 및 전환 관련 정보 제외
         dailyDataHtml = `
           <td>${dayData.date}</td>
           <td class="metric-value">${parseInt(dayData.impressions).toLocaleString()}</td>
           <td class="metric-value">${parseInt(dayData.clicks).toLocaleString()}</td>
           <td class="metric-value">${derivedMetrics.ctr}%</td>
-          <td class="metric-value">${conversions > 0 ? conversions.toLocaleString() : '-'}</td>
-          <td class="metric-value">${conversionRate > 0 ? conversionRate + '%' : '-'}</td>
           <td>${formatTrend('impressions')}</td>
           <td>${formatTrend('clicks')}</td>
           <td>${formatTrend('ctr')}</td>`;
@@ -748,14 +744,12 @@ export class UnifiedSearchService {
         const costPerConversion = derivedMetrics.cost_per_conversion || 0;
         
         if (isClientReport) {
-          // 광고주용: 비용 관련 정보 제외
+          // 광고주용: 비용 및 전환 관련 정보 제외
           adsDailyDataHtml = `
             <td>${dayData.date}</td>
             <td>${parseInt(dayData.impressions).toLocaleString()}</td>
             <td>${parseInt(dayData.clicks).toLocaleString()}</td>
             <td>${derivedMetrics.ctr}%</td>
-            <td>${conversions > 0 ? conversions.toLocaleString() : '-'}</td>
-            <td>${conversionRate > 0 ? conversionRate + '%' : '-'}</td>
             <td>${formatTrend('impressions')}</td>
             <td>${formatTrend('clicks')}</td>
             <td>${formatTrend('ctr')}</td>`;
@@ -879,14 +873,12 @@ export class UnifiedSearchService {
           // 광고 데이터 행 생성 (리포트 타입에 따라)
           let adsDataHtml = '';
           if (isClientReport) {
-            // 광고주용: 비용 관련 정보 제외
+            // 광고주용: 비용 및 전환 관련 정보 제외
             adsDataHtml = `
               <td>${ad.ad_name || ad.name}</td>
               <td class="metric-value">${impressions.toLocaleString()}</td>
               <td class="metric-value">${clicks.toLocaleString()}</td>
-              <td class="metric-value">${ctr}%</td>
-              <td class="metric-value">${conversions > 0 ? conversions.toLocaleString() : '-'}</td>
-              <td class="metric-value">${conversions > 0 ? conversionRate + '%' : '-'}</td>`;
+              <td class="metric-value">${ctr}%</td>`;
           } else {
             // 내부용: 모든 정보 포함
             adsDataHtml = `
@@ -997,10 +989,10 @@ export class UnifiedSearchService {
       if (isClient) {
         // 광고주용: 비용 관련 지표 제외
         return {
-          summary: ['노출수', '클릭수', 'CTR', '전환수', '전환율'],
-          campaign: ['노출수', '클릭수', 'CTR', '전환수', '전환율'],
-          daily: ['날짜', '노출수', '클릭수', 'CTR', '전환수', '전환율', '노출수변화', '클릭수변화', 'CTR변화'],
-          ads: ['광고명', '노출수', '클릭수', 'CTR', '전환수', '전환율']
+          summary: ['노출수', '클릭수', 'CTR'],
+          campaign: ['노출수', '클릭수', 'CTR'],
+          daily: ['날짜', '노출수', '클릭수', 'CTR', '노출수변화', '클릭수변화', 'CTR변화'],
+          ads: ['광고명', '노출수', '클릭수', 'CTR']
         };
       } else {
         // 내부용: 모든 지표 포함

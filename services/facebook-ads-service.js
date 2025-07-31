@@ -12,6 +12,7 @@ export class FacebookAdsService {
   constructor() {
     this.platform = 'facebook';
     this.exchangeRate = null; // 환율 캐시
+    this.exchangeRateService = exchangeRateService; // 환율 서비스 인스턴스 추가
   }
 
   /**
@@ -631,10 +632,17 @@ export class FacebookAdsService {
       for (let dailyEntry of convertedData.dailyData) {
         if (dailyEntry.spend && dailyEntry.date) {
           const usdAmount = parseFloat(dailyEntry.spend);
-          // 해당 날짜의 환율로 변환
-          const krwSpend = await this.exchangeRateService.convertUsdToKrwForDate(usdAmount, dailyEntry.date);
-          dailyEntry.spend = Math.round(krwSpend);
-          console.error(`💱 ${dailyEntry.date}: $${usdAmount.toFixed(2)} → ₩${Math.round(krwSpend).toLocaleString()}`);
+          try {
+            // 해당 날짜의 환율로 변환
+            const krwSpend = await this.exchangeRateService.convertUsdToKrwForDate(usdAmount, dailyEntry.date);
+            dailyEntry.spend = Math.round(krwSpend);
+            console.error(`💱 ${dailyEntry.date}: $${usdAmount.toFixed(2)} → ₩${Math.round(krwSpend).toLocaleString()}`);
+          } catch (error) {
+            console.error(`⚠️ 환율 변환 실패 (${dailyEntry.date}): ${error.message}, 현재 환율로 대체`);
+            // Fallback: 현재 환율 사용
+            const fallbackKrwSpend = await this.convertUsdToKrw(usdAmount);
+            dailyEntry.spend = Math.round(fallbackKrwSpend);
+          }
         }
       }
     }
@@ -1701,20 +1709,43 @@ export class FacebookAdsService {
       // 환율 적용하여 USD → KRW 환산
       const convertedAds = [];
       for (const ad of allAds) {
-        const convertedAd = await this.applyExchangeRateToAdData(ad);
-        
-        // 환산된 KRW 금액으로 비율 지표 재계산
-        const krwSpend = convertedAd.spend;
-        const impressions = parseInt(ad.impressions);
-        const clicks = parseInt(ad.clicks);
-        const conversions = parseInt(ad.conversions);
-        
-        convertedAd.cpc = clicks > 0 ? (krwSpend / clicks).toFixed(2) : '0.00';
-        convertedAd.cpm = impressions > 0 ? (krwSpend / impressions * 1000).toFixed(2) : '0.00';
-        convertedAd.cost_per_conversion = conversions > 0 ? (krwSpend / conversions).toFixed(2) : '0.00';
-        convertedAd.costPerConversion = conversions > 0 ? (krwSpend / conversions).toFixed(2) : '0.00';
-        
-        convertedAds.push(convertedAd);
+        try {
+          const convertedAd = await this.applyExchangeRateToAdData(ad);
+          
+          // 환산된 KRW 금액으로 비율 지표 재계산
+          const krwSpend = convertedAd.spend;
+          const impressions = parseInt(ad.impressions);
+          const clicks = parseInt(ad.clicks);
+          const conversions = parseInt(ad.conversions);
+          
+          convertedAd.cpc = clicks > 0 ? (krwSpend / clicks).toFixed(2) : '0.00';
+          convertedAd.cpm = impressions > 0 ? (krwSpend / impressions * 1000).toFixed(2) : '0.00';
+          convertedAd.cost_per_conversion = conversions > 0 ? (krwSpend / conversions).toFixed(2) : '0.00';
+          convertedAd.costPerConversion = conversions > 0 ? (krwSpend / conversions).toFixed(2) : '0.00';
+          
+          convertedAds.push(convertedAd);
+        } catch (error) {
+          console.error(`⚠️ 광고 ${ad.ad_name} (ID: ${ad.ad_id}) 환율 변환 실패:`, error.message);
+          
+          // Fallback: 현재 환율로 변환
+          try {
+            const fallbackKrwSpend = await this.convertUsdToKrw(parseFloat(ad.spend));
+            const fallbackAd = {
+              ...ad,
+              spend: fallbackKrwSpend,
+              cpc: parseInt(ad.clicks) > 0 ? (fallbackKrwSpend / parseInt(ad.clicks)).toFixed(2) : '0.00',
+              cpm: parseInt(ad.impressions) > 0 ? (fallbackKrwSpend / parseInt(ad.impressions) * 1000).toFixed(2) : '0.00',
+              cost_per_conversion: parseInt(ad.conversions) > 0 ? (fallbackKrwSpend / parseInt(ad.conversions)).toFixed(2) : '0.00',
+              costPerConversion: parseInt(ad.conversions) > 0 ? (fallbackKrwSpend / parseInt(ad.conversions)).toFixed(2) : '0.00'
+            };
+            convertedAds.push(fallbackAd);
+            console.error(`✅ 광고 ${ad.ad_name} fallback 환율 적용 완료`);
+          } catch (fallbackError) {
+            console.error(`❌ 광고 ${ad.ad_name} fallback 환율 적용도 실패:`, fallbackError.message);
+            // 최종 fallback: 원본 USD 데이터 유지
+            convertedAds.push(ad);
+          }
+        }
       }
       
       return convertedAds.sort((a, b) => parseFloat(b.spend) - parseFloat(a.spend));

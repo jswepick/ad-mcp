@@ -11,7 +11,7 @@ import path from 'path';
 
 export class UnifiedSearchService {
   constructor(services) {
-    this.services = services; // { facebook: FacebookAdsService, google: GoogleAdsService, tiktok: TikTokAdsService }
+    this.services = services; // { facebook: FacebookAdsService, google: GoogleAdsService, tiktok: TikTokAdsService, carrot: CarrotAdsService }
   }
 
   /**
@@ -984,7 +984,8 @@ export class UnifiedSearchService {
     const platformNames = {
       facebook: 'Facebook Ads',
       google: 'Google Ads',  
-      tiktok: 'TikTok Ads'
+      tiktok: 'TikTok Ads',
+      carrot: '당근마켓'
     };
 
     // 제목 결정
@@ -1156,6 +1157,7 @@ export class UnifiedSearchService {
           <option value="facebook">Facebook</option>
           <option value="google">Google</option>
           <option value="tiktok">TikTok</option>
+          <option value="carrot">당근마켓</option>
         </select>
       </div>
       
@@ -1209,7 +1211,8 @@ export class UnifiedSearchService {
     const platformNames = {
       facebook: '**Facebook Ads**',
       google: '**Google Ads**',
-      tiktok: '**TikTok Ads**'
+      tiktok: '**TikTok Ads**',
+      carrot: '**당근마켓**'
     };
 
     let totalCampaigns = 0;
@@ -1407,8 +1410,9 @@ export class UnifiedSearchService {
 - \`페이스북\`, \`facebook\`, \`fb\`
 - \`구글\`, \`google\`, \`구글광고\`
 - \`틱톡\`, \`tiktok\`
+- \`당근마켓\`, \`carrot\`, \`당근\`
 - \`전체\`, \`all\`: 모든 매체
-- 여러 매체: \`구글,페이스북\`
+- 여러 매체: \`구글,페이스북,당근마켓\`
 
 **사용 예시:**
 1. \`키워드:고병우 날짜:20250720-20250721 매체:구글,페이스북\`
@@ -1598,7 +1602,7 @@ export class UnifiedSearchService {
 키워드: ${command.keyword || '전체'}
 파일 크기: ${fileSizeKB}KB
 매체: ${command.platforms.map(p => {
-  const names = { facebook: 'Facebook', google: 'Google Ads', tiktok: 'TikTok Ads' };
+  const names = { facebook: 'Facebook', google: 'Google Ads', tiktok: 'TikTok Ads', carrot: '당근마켓' };
   return names[p] || p;
 }).join(', ')}
 
@@ -1873,7 +1877,8 @@ export class UnifiedSearchService {
         const platformNames = {
           'facebook': 'Facebook Ads',
           'google': 'Google Ads', 
-          'tiktok': 'TikTok Ads'
+          'tiktok': 'TikTok Ads',
+          'carrot': '당근마켓'
         };
         platformInfo.textContent = '🏢 ' + (platformNames[selectedPlatform] || selectedPlatform);
       }

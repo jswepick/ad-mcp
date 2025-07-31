@@ -17,6 +17,7 @@ import path from 'path';
 import { FacebookAdsService } from './services/facebook-ads-service.js';
 import { GoogleAdsService } from './services/google-ads-service.js';
 import { TikTokAdsService } from './services/tiktok-ads-service.js';
+import { CarrotAdsService } from './services/carrot-ads-service.js';
 import { UnifiedSearchService } from './services/unified-search-service.js';
 
 // 환경 변수 확인
@@ -28,8 +29,9 @@ console.error('🚀 Multi-Platform Ads MCP Server 시작');
 const facebookEnabled = !!(process.env.META_ACCESS_TOKEN && process.env.META_AD_ACCOUNT_ID);
 const googleEnabled = !!(process.env.GOOGLE_ADS_CLIENT_ID && process.env.GOOGLE_ADS_CUSTOMER_ID);
 const tiktokEnabled = !!(process.env.TIKTOK_ACCESS_TOKEN && process.env.TIKTOK_ADVERTISER_ID);
+const carrotEnabled = !!(process.env.GOOGLE_SHEETS_SERVICE_ACCOUNT_KEY && process.env.CARROT_SPREADSHEET_ID);
 
-const enabledPlatforms = [facebookEnabled, googleEnabled, tiktokEnabled].filter(Boolean).length;
+const enabledPlatforms = [facebookEnabled, googleEnabled, tiktokEnabled, carrotEnabled].filter(Boolean).length;
 console.error(`📊 ${enabledPlatforms}개 플랫폼 초기화 완료`);
 console.error('PORT:', PORT);
 
@@ -60,6 +62,10 @@ class MultiPlatformAdsServer {
     
     if (tiktokEnabled) {
       this.services.tiktok = new TikTokAdsService();
+    }
+    
+    if (carrotEnabled) {
+      this.services.carrot = new CarrotAdsService();
     }
     
     // 통합 검색 서비스 초기화

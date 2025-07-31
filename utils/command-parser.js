@@ -71,6 +71,9 @@ const PLATFORM_MAP = {
   '구글광고': 'google',
   '틱톡': 'tiktok',
   'tiktok': 'tiktok',
+  '당근마켓': 'carrot',
+  '당근': 'carrot',
+  'carrot': 'carrot',
   '전체': 'all',
   'all': 'all'
 };
@@ -78,7 +81,7 @@ const PLATFORM_MAP = {
 /**
  * 모든 지원 매체 목록
  */
-const ALL_PLATFORMS = ['facebook', 'google', 'tiktok'];
+const ALL_PLATFORMS = ['facebook', 'google', 'tiktok', 'carrot'];
 
 /**
  * 사용자 명령어를 파싱하여 구조화된 객체로 반환

@@ -621,11 +621,20 @@ export class FacebookAdsService {
       convertedData.spend = await this.convertUsdToKrw(parseFloat(convertedData.spend));
     }
 
-    // 일별 데이터 환산
+    // 일별 데이터 환산 (각 날짜별 환율 적용)
     if (convertedData.dailyData && Array.isArray(convertedData.dailyData)) {
+      const dates = [...new Set(convertedData.dailyData.map(d => d.date).filter(Boolean))];
+      if (dates.length > 0) {
+        console.error(`💱 Facebook 환율 적용: ${dates.length}개 날짜 (${dates[0]} ~ ${dates[dates.length-1]})`);
+      }
+      
       for (let dailyEntry of convertedData.dailyData) {
-        if (dailyEntry.spend) {
-          dailyEntry.spend = await this.convertUsdToKrw(parseFloat(dailyEntry.spend));
+        if (dailyEntry.spend && dailyEntry.date) {
+          const usdAmount = parseFloat(dailyEntry.spend);
+          // 해당 날짜의 환율로 변환
+          const krwSpend = await this.exchangeRateService.convertUsdToKrwForDate(usdAmount, dailyEntry.date);
+          dailyEntry.spend = Math.round(krwSpend);
+          console.error(`💱 ${dailyEntry.date}: $${usdAmount.toFixed(2)} → ₩${Math.round(krwSpend).toLocaleString()}`);
         }
       }
     }

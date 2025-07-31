@@ -24,6 +24,7 @@ const CACHE_FILE_PATH = path.join(process.cwd(), 'exchange-rate-cache.json');
 export class ExchangeRateService {
   constructor() {
     this.cache = null;
+    this.dateRateCache = new Map(); // 날짜별 환율 캐시
     this.loadCache();
   }
 
@@ -232,6 +233,94 @@ export class ExchangeRateService {
         lastUpdated: new Date().toISOString(),
         error: error.message
       };
+    }
+  }
+
+  /**
+   * 특정 날짜의 환율 조회 (캐시 우선)
+   * @param {string} date - YYYY-MM-DD 형식의 날짜
+   * @returns {Promise<number>} USD 환율
+   */
+  async getUsdRateForDate(date) {
+    // 캐시에서 확인
+    if (this.dateRateCache.has(date)) {
+      const rate = this.dateRateCache.get(date);
+      console.error(`💱 ${date} 환율: ₩${rate.toLocaleString()}/USD (캐시 사용)`);
+      return rate;
+    }
+
+    try {
+      // API에서 해당 날짜 환율 조회
+      const dateStr = date.replace(/-/g, ''); // YYYYMMDD 형식으로 변환
+      console.error(`💱 ${date} 환율 API 조회 중...`);
+      const rate = await this.fetchExchangeRate(dateStr);
+      
+      // 캐시에 저장
+      this.dateRateCache.set(date, rate);
+      console.error(`💱 ${date} 환율: ₩${rate.toLocaleString()}/USD (캐시 저장)`);
+      
+      return rate;
+    } catch (error) {
+      console.error(`${date} 환율 조회 실패:`, error.message);
+      
+      // 실패시 현재 캐시된 환율 사용
+      if (this.cache && this.cache.usdRate) {
+        console.error(`${date} 환율 대신 현재 캐시 환율 사용:`, this.cache.usdRate);
+        return this.cache.usdRate;
+      }
+      
+      // 최후 수단: 기본값
+      const defaultRate = 1300;
+      console.error(`${date} 환율 조회 완전 실패, 기본값 사용: ${defaultRate}`);
+      return defaultRate;
+    }
+  }
+
+  /**
+   * 여러 날짜의 환율을 배치로 조회
+   * @param {string[]} dates - YYYY-MM-DD 형식의 날짜 배열
+   * @returns {Promise<Map<string, number>>} 날짜별 환율 맵
+   */
+  async getBatchUsdRates(dates) {
+    const rateMap = new Map();
+    
+    console.error(`💱 배치 환율 조회 시작: ${dates.length}개 날짜 (${dates[0]} ~ ${dates[dates.length-1]})`);
+    
+    // 병렬로 환율 조회
+    const promises = dates.map(async (date) => {
+      try {
+        const rate = await this.getUsdRateForDate(date);
+        return { date, rate };
+      } catch (error) {
+        console.error(`${date} 환율 조회 중 오류:`, error.message);
+        return { date, rate: 1300 }; // 기본값
+      }
+    });
+
+    const results = await Promise.all(promises);
+    
+    // 결과를 맵에 저장
+    results.forEach(({ date, rate }) => {
+      rateMap.set(date, rate);
+    });
+
+    console.error(`💱 배치 환율 조회 완료: ${results.length}개 날짜 환율 적용 준비`);
+    return rateMap;
+  }
+
+  /**
+   * 특정 날짜의 USD를 KRW로 환산
+   * @param {number} usdAmount - USD 금액
+   * @param {string} date - YYYY-MM-DD 형식의 날짜
+   * @returns {Promise<number>} KRW 금액
+   */
+  async convertUsdToKrwForDate(usdAmount, date) {
+    try {
+      const rate = await this.getUsdRateForDate(date);
+      return usdAmount * rate;
+    } catch (error) {
+      console.error(`${date} USD → KRW 환산 실패:`, error.message);
+      throw error;
     }
   }
 }

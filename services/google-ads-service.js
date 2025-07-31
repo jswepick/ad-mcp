@@ -429,6 +429,7 @@ export class GoogleAdsService {
   // === 캠페인 관련 메서드들 ===
 
   async getCampaignPerformance(days, campaignIds) {
+    console.log("getCampaignPerformance CALLED");
     try {
       
       const { start_date, end_date } = getGoogleDateRange(days);
@@ -485,6 +486,7 @@ export class GoogleAdsService {
   }
 
   async getCampaignList(statusFilter) {
+    console.log("getCampaignList CALLED");
     try {
 
       // 간단한 GAQL 쿼리 작성
@@ -1644,6 +1646,8 @@ export class GoogleAdsService {
    * 테스트에서 검증된 단계적 접근법 사용
    */
   async getCampaignListWithDateFilter(startDate, endDate) {
+    console.log("CAMPAIGN FUNCTION CALLED");
+    console.error(`🔥🔥🔥 [Google Ads] getCampaignListWithDateFilter 호출됨! ${startDate} ~ ${endDate} 🔥🔥🔥`);
     try {
       await this.getAccessToken();
       
@@ -1676,17 +1680,45 @@ export class GoogleAdsService {
         return [];
       }
 
-      // Google Ads API 응답을 표준 형식으로 변환
-      const campaigns = response.results.map(row => ({
-        campaign_id: row.campaign.id.toString(),
-        campaign_name: row.campaign.name,
-        name: row.campaign.name, // 호환성을 위한 별칭
-        status: row.campaign.status,
-        spend: (row.metrics.costMicros / 1000000).toFixed(2), // 마이크로 단위를 달러로 변환
-        date: row.segments.date
-      }));
+      // 🔧 중복 제거: 캠페인별로 집계 (TikTok 방식 적용)
+      const campaignMap = new Map();
+      
+      console.error(`🔍 [Google Ads] 집계 전 총 ${response.results.length}개 행 처리 시작`);
+      
+      response.results.forEach((row, index) => {
+        const campaignId = row.campaign.id.toString();
+        const spend = row.metrics.costMicros / 1000000;
+        const date = row.segments?.date;
+        
+        console.error(`🔍 행 ${index + 1}: ID=${campaignId}, 날짜=${date}, 지출=$${spend.toFixed(2)}`);
+        
+        if (!campaignMap.has(campaignId)) {
+          console.error(`✅ 새 캠페인 추가: ${campaignId} - ${row.campaign.name}`);
+          campaignMap.set(campaignId, {
+            campaign_id: campaignId,
+            campaign_name: row.campaign.name,
+            name: row.campaign.name, // 호환성을 위한 별칭
+            status: row.campaign.status,
+            totalSpend: 0
+          });
+        } else {
+          console.error(`🔄 기존 캠페인에 합산: ${campaignId}`);
+        }
+        
+        // 일별 지출 합계
+        const beforeSpend = campaignMap.get(campaignId).totalSpend;
+        campaignMap.get(campaignId).totalSpend += spend;
+        console.error(`💰 지출 합산: $${beforeSpend.toFixed(2)} + $${spend.toFixed(2)} = $${campaignMap.get(campaignId).totalSpend.toFixed(2)}`);
+      });
+      
+      // 최종 캠페인 목록 생성
+      const campaigns = Array.from(campaignMap.values()).map(campaign => ({
+        ...campaign,
+        spend: campaign.totalSpend.toFixed(2)
+      }))
+      .sort((a, b) => parseFloat(b.spend) - parseFloat(a.spend)); // 지출 순 정렬
 
-      console.error(`[Google Ads] 캠페인 조회 성공: ${campaigns.length}개 캠페인`);
+      console.error(`[Google Ads] 캠페인 중복 제거 완료: ${response.results.length}개 행 → ${campaigns.length}개 고유 캠페인`);
       const totalSpend = campaigns.reduce((sum, c) => sum + parseFloat(c.spend), 0);
       console.error(`[Google Ads] 총 지출: $${totalSpend.toFixed(2)}`);
       
@@ -1715,16 +1747,46 @@ export class GoogleAdsService {
         const fallbackResponse = await this.makeGoogleAdsRequest(fallbackQuery);
         
         if (fallbackResponse.results && fallbackResponse.results.length > 0) {
-          console.error(`[Google Ads] Fallback 성공: ${fallbackResponse.results.length}개 캠페인`);
+          console.error(`🚨🚨🚨 [Google Ads] Fallback 성공: ${fallbackResponse.results.length}개 캠페인 🚨🚨🚨`);
           
-          return fallbackResponse.results.map(row => ({
-            campaign_id: row.campaign.id.toString(),
-            campaign_name: row.campaign.name,
-            name: row.campaign.name,
-            status: row.campaign.status,
-            spend: (row.metrics.costMicros / 1000000).toFixed(2),
-            date: 'N/A'
-          }));
+          // Fallback에서도 중복 제거 적용
+          const fallbackCampaignMap = new Map();
+          
+          console.error(`🔍 [Google Ads] Fallback 집계 전 총 ${fallbackResponse.results.length}개 행 처리 시작`);
+          
+          fallbackResponse.results.forEach((row, index) => {
+            const campaignId = row.campaign.id.toString();
+            const spend = row.metrics.costMicros / 1000000;
+            
+            console.error(`🔍 Fallback 행 ${index + 1}: ID=${campaignId}, 지출=$${spend.toFixed(2)}`);
+            
+            if (!fallbackCampaignMap.has(campaignId)) {
+              console.error(`✅ Fallback 새 캠페인 추가: ${campaignId} - ${row.campaign.name}`);
+              fallbackCampaignMap.set(campaignId, {
+                campaign_id: campaignId,
+                campaign_name: row.campaign.name,
+                name: row.campaign.name,
+                status: row.campaign.status,
+                totalSpend: 0
+              });
+            } else {
+              console.error(`🔄 Fallback 기존 캠페인에 합산: ${campaignId}`);
+            }
+            
+            const beforeSpend = fallbackCampaignMap.get(campaignId).totalSpend;
+            fallbackCampaignMap.get(campaignId).totalSpend += spend;
+            console.error(`💰 Fallback 지출 합산: $${beforeSpend.toFixed(2)} + $${spend.toFixed(2)} = $${fallbackCampaignMap.get(campaignId).totalSpend.toFixed(2)}`);
+          });
+          
+          const fallbackCampaigns = Array.from(fallbackCampaignMap.values()).map(campaign => ({
+            ...campaign,
+            spend: campaign.totalSpend.toFixed(2)
+          }))
+          .sort((a, b) => parseFloat(b.spend) - parseFloat(a.spend));
+          
+          console.error(`🚨 [Google Ads] Fallback 중복 제거 완료: ${fallbackResponse.results.length}개 행 → ${fallbackCampaigns.length}개 고유 캠페인`);
+          
+          return fallbackCampaigns;
         }
       } catch (fallbackError) {
         console.error(`[Google Ads] Fallback도 실패: ${fallbackError.message}`);
@@ -1821,7 +1883,7 @@ export class GoogleAdsService {
           // TikTok 방식의 Map 기반 집계 (안전함)
           const adMap = new Map();
           
-          console.error(`🔍 [Google Ads] 집계 전 총 ${resourceResponse.results.length}개 행`);
+          console.error(`🔍 [Google Ads] 광고 집계 전 총 ${resourceResponse.results.length}개 행 처리 시작`);
           
           resourceResponse.results.forEach((row, index) => {
             const adId = this.safeExtractAdId(row);
@@ -1837,11 +1899,15 @@ export class GoogleAdsService {
             }
             
             const costMicros = row.metrics?.costMicros || 0;
+            const spend = costMicros / 1000000;
             const impressions = parseInt(row.metrics?.impressions || 0);
             const clicks = parseInt(row.metrics?.clicks || 0);
             const conversions = parseFloat(row.metrics?.conversions || 0);
             
+            console.error(`🔍 광고 행 ${index + 1}: ID=${adId}, 날짜=${date}, 지출=$${spend.toFixed(2)}`);
+            
             if (!adMap.has(adId)) {
+              console.error(`✅ 새 광고 추가: ${adId} - ${this.safeExtractAdName(row, adId)}`);
               adMap.set(adId, {
                 ad_id: adId,
                 ad_name: this.safeExtractAdName(row, adId),
@@ -1855,6 +1921,8 @@ export class GoogleAdsService {
                 totalClicks: 0,
                 totalConversions: 0
               });
+            } else {
+              console.error(`🔄 기존 광고에 합산: ${adId}`);
             }
             
             const adData = adMap.get(adId);

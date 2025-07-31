@@ -257,7 +257,8 @@ export function formatCommandSummary(command) {
   const platformNames = {
     facebook: 'Facebook',
     google: 'Google Ads',
-    tiktok: 'TikTok Ads'
+    tiktok: 'TikTok Ads',
+    carrot: '당근마켓'
   };
 
   const platformList = command.platforms.map(p => platformNames[p]).join(', ');

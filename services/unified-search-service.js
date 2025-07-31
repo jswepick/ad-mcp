@@ -495,6 +495,21 @@ export class UnifiedSearchService {
         color: #6c757d;
         font-style: italic;
       }
+      .financial-summary-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 10px 0;
+      }
+      .financial-summary-table th, 
+      .financial-summary-table td {
+        border: 1px solid #ddd;
+        padding: 8px 12px;
+        text-align: left;
+      }
+      .financial-summary-table th {
+        background-color: #f8f9fa;
+        font-weight: bold;
+      }
     </style>`;
   }
 
@@ -1092,13 +1107,25 @@ export class UnifiedSearchService {
       }
     }
     
-    const summaryHtml = totalCampaigns > 0 ? `
-    <div class="summary-box">
-      <h3>📊 전체 요약</h3>
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-        ${summaryContent}
-      </div>
-    </div>` : '<p class="no-data">조건에 맞는 캠페인을 찾을 수 없습니다.</p>';
+    // 전체 요약 HTML 생성 (리포트 타입별 분기)
+    let summaryHtml = '';
+    if (isClientReport) {
+      // 광고주용: 전체 요약 제거
+      summaryHtml = '';
+    } else {
+      // 내부용: 광고비/매출/수익/수익률 표 표시
+      summaryHtml = totalCampaigns > 0 ? `
+      <div class="summary-box">
+        <h3>📊 전체 요약</h3>
+        <table class="financial-summary-table">
+          <tr><th>항목</th><th>금액/비율</th></tr>
+          <tr><td>광고비</td><td id="total-spend">₩${totalSpend.toLocaleString()}</td></tr>
+          <tr><td>매출</td><td>-</td></tr>
+          <tr><td>수익</td><td>-</td></tr>
+          <tr><td>수익률</td><td>-</td></tr>
+        </table>
+      </div>` : '<p class="no-data">조건에 맞는 캠페인을 찾을 수 없습니다.</p>';
+    }
 
     // 날짜 범위 수집 (날짜 필터용)
     const dateRange = this.getDateRangeFromCommand(command);
@@ -1166,10 +1193,10 @@ export class UnifiedSearchService {
     
     ${summaryHtml}
     
-    <div style="text-align: center; margin-top: 30px; color: #7f8c8d; font-size: 12px;">
+    ${!isClientReport ? `<div style="text-align: center; margin-top: 30px; color: #7f8c8d; font-size: 12px;">
       리포트 생성 시간: ${new Date().toLocaleString('ko-KR')}
       ${exchangeInfo ? `<br>환율 정보: 1 USD = ₩${exchangeInfo.rate.toLocaleString()} (${exchangeInfo.date}, ${exchangeInfo.source === 'koreaexim_api' ? '한국수출입은행' : '기본값'})` : ''}
-    </div>
+    </div>` : ''}
   </div>
 
   <script>
@@ -1909,7 +1936,11 @@ export class UnifiedSearchService {
         totalClicks += clicks;
       });
       
-      // 요약 정보 업데이트 - 선택된 날짜 요약 섹션 제거됨
+      // 전체 요약 업데이트 (내부용 리포트의 광고비 표)
+      const totalSpendElement = document.getElementById('total-spend');
+      if (totalSpendElement) {
+        totalSpendElement.textContent = '₩' + totalSpend.toLocaleString();
+      }
     }
     `;
   }

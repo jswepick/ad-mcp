@@ -505,6 +505,7 @@ export class UnifiedSearchService {
         border: 1px solid #ddd;
         padding: 8px 12px;
         text-align: left;
+        color: #333;
       }
       .financial-summary-table th {
         background-color: #f8f9fa;

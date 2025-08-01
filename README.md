@@ -73,6 +73,8 @@ node server.js
 매체:페이스북          # Facebook만
 매체:구글             # Google Ads만
 매체:틱톡             # TikTok Ads만
+매체:당근마켓          # 당근마켓만
+매체:당근             # 당근마켓 줄임말
 매체:facebook         # 영문도 지원
 매체:페이스북,구글     # 복수 선택
 매체:전체             # 모든 매체
@@ -80,8 +82,8 @@ node server.js
 
 #### 4. 리포트 타입 (선택, 기본값: 내부)
 ```bash
-리포트:내부           # 모든 지표 (광고비, CPC, CPM 등)
-리포트:광고주         # 제한된 지표 (노출수, 클릭수, CTR, 전환수, 전환율)
+리포트:내부           # 모든 지표 + 광고비/매출/수익/수익률 표
+리포트:광고주         # 제한된 지표 (노출수, 클릭수, CTR만)
 ```
 
 #### 5. 커스텀 제목 (선택)
@@ -121,33 +123,48 @@ node server.js
 - 크리에이티브 상세 정보 조회
 - 일괄 상태 변경 기능
 
-### 🔧 Google Ads (구현 예정)
-- 캠페인 성과 조회
+### ✅ Google Ads (완전 구현)
+- 캠페인 성과 조회 및 관리
+- 광고그룹 성과 조회
 - 키워드 성과 분석
-- 검색어 리포트
-- 광고그룹 관리
+- 일괄 상태 변경 기능
 
-### 🔧 TikTok Ads (구현 예정)
-- 캠페인 성과 조회
+### ✅ TikTok Ads (완전 구현)
+- 캠페인 성과 조회 및 관리
+- 광고그룹 성과 조회
 - 동영상 광고 성과 분석
-- 오디언스 인사이트
-- 참여율 분석
+- 일괄 상태 변경 기능
+
+### ✅ 당근마켓 (완전 구현)
+- Google Sheets 연동 성과 조회
+- 캠페인별 성과 집계
+- 광고소재별 상세 성과
+- 일별 성과 추적
 
 ## 프로젝트 구조
 
 ```
-new-mcp/
-├── server.js                       # 메인 서버 (라우팅 중심)
-├── package.json
-├── Dockerfile
-├── README.md
-├── services/                       # 플랫폼별 서비스
-│   ├── facebook-ads-service.js     # Facebook Ads 로직
-│   ├── google-ads-service.js       # Google Ads 로직 (기본 구조)
-│   └── tiktok-ads-service.js       # TikTok Ads 로직 (기본 구조)
-└── utils/                          # 공통 유틸리티
-    ├── date-utils.js               # 날짜 계산 함수
-    └── format-utils.js             # 포맷팅 함수
+git_folder/
+├── server.js                           # 메인 MCP 서버
+├── package.json                        # 패키지 설정 및 의존성
+├── package-lock.json                   # 의존성 잠금 파일
+├── README.md                           # 프로젝트 문서
+├── services/                           # 플랫폼별 서비스
+│   ├── facebook-ads-service.js         # Facebook Ads API 연동
+│   ├── google-ads-service.js           # Google Ads API 연동
+│   ├── tiktok-ads-service.js           # TikTok Ads API 연동
+│   ├── carrot-ads-service.js           # 당근마켓 Google Sheets 연동
+│   └── unified-search-service.js       # 통합 검색 및 HTML 생성
+├── utils/                              # 공통 유틸리티
+│   ├── command-parser.js               # 명령어 파싱 및 검증
+│   ├── date-utils.js                   # 날짜 계산 및 변환
+│   ├── format-utils.js                 # 숫자/통화/퍼센트 포맷팅
+│   ├── exchange-rate-service.js        # 한국수출입은행 환율 API
+│   └── daily-trend-calculator.js       # 일별 트렌드 분석
+├── test/                               # 테스트 스크립트
+│   └── test-carrot-only.js             # 당근마켓 단독 테스트
+└── reports/                            # 생성된 HTML 리포트 저장소
+    └── [생성된 HTML 파일들]
 ```
 
 ## ⚙️ 환경 변수 설정
@@ -173,6 +190,17 @@ TIKTOK_ACCESS_TOKEN=your_access_token
 TIKTOK_ADVERTISER_ID=your_advertiser_id
 TIKTOK_APP_ID=your_app_id
 TIKTOK_SECRET=your_secret
+```
+
+### 당근마켓 (선택) - Google Sheets 연동
+```bash
+# Google Service Account JSON 키 (한 줄로)
+GOOGLE_SHEETS_SERVICE_ACCOUNT_KEY={"type":"service_account","project_id":"..."}
+
+# 스프레드시트 설정
+CARROT_SPREADSHEET_ID=12qz6It26QrTuSCoYFQshEGUHYEQG_fyZlubn1Ceefv8
+CARROT_SHEET_NAME=성과데이터
+CARROT_SHEET_RANGE=A:M
 ```
 
 ### 환율 API (권장)
@@ -229,11 +257,75 @@ NODE_ENV=development
 ## 💻 Claude Desktop 사용법
 
 ### 1. MCP 서버 설정
-1. 프로젝트를 로컬에서 실행: `node server.js`
-2. Claude Desktop에서 MCP 서버 연결
-3. 자연어로 요청하면 자동으로 적절한 도구 선택
 
-### 2. 자연어 요청 예시
+#### 설정 파일 위치
+Claude Desktop 설정 파일을 찾아 편집하세요:
+
+**Windows:**
+```
+%APPDATA%\Claude\claude_desktop_config.json
+```
+
+**macOS:**
+```
+~/Library/Application Support/Claude/claude_desktop_config.json
+```
+
+**Linux:**
+```
+~/.config/Claude/claude_desktop_config.json
+```
+
+#### 설정 파일 구성
+`claude_desktop_config.json` 파일에 다음 내용을 추가하세요:
+
+```json
+{
+  "mcpServers": {
+    "ad-mcp": {
+      "command": "node",
+      "args": ["C:/Users/YourName/Desktop/git_folder/server.js"],
+      "env": {
+        "META_ACCESS_TOKEN": "your_facebook_access_token",
+        "META_AD_ACCOUNT_ID": "your_ad_account_id",
+        "GOOGLE_ADS_CLIENT_ID": "your_google_client_id",
+        "GOOGLE_ADS_CLIENT_SECRET": "your_google_client_secret",
+        "GOOGLE_ADS_REFRESH_TOKEN": "your_google_refresh_token",
+        "GOOGLE_ADS_DEVELOPER_TOKEN": "your_google_developer_token",
+        "GOOGLE_ADS_CUSTOMER_ID": "your_google_customer_id",
+        "TIKTOK_ACCESS_TOKEN": "your_tiktok_access_token",
+        "TIKTOK_ADVERTISER_ID": "your_tiktok_advertiser_id",
+        "TIKTOK_APP_ID": "your_tiktok_app_id",
+        "TIKTOK_SECRET": "your_tiktok_secret",
+        "GOOGLE_SHEETS_SERVICE_ACCOUNT_KEY": "{\"type\":\"service_account\",\"project_id\":\"...\"}",
+        "CARROT_SPREADSHEET_ID": "12qz6It26QrTuSCoYFQshEGUHYEQG_fyZlubn1Ceefv8",
+        "CARROT_SHEET_NAME": "성과데이터",
+        "CARROT_SHEET_RANGE": "A:M",
+        "KOREAEXIM_API_KEY": "your_koreaexim_api_key",
+        "PORT": "3000",
+        "NODE_ENV": "development"
+      }
+    }
+  }
+}
+```
+
+> ⚠️ **중요**: `args` 배열의 경로를 본인의 프로젝트 경로로 수정하세요.
+
+#### 설정 완료 후
+1. Claude Desktop을 완전히 종료 후 재시작
+2. 새 대화에서 "MCP 연결 상태 확인해줘" 등으로 연결 테스트
+3. 정상 연결되면 자연어로 광고 성과 조회 가능
+
+### 2. 프로젝트 실행
+설정 전에 프로젝트가 실행 중이어야 합니다:
+```bash
+cd /path/to/your/project
+npm install
+node server.js
+```
+
+### 3. 자연어 요청 예시
 ```
 # 기본 검색
 "키워드 임동규로 7월 21일부터 24일까지 전체 매체 성과를 조회해줘"
@@ -248,7 +340,7 @@ NODE_ENV=development
 "성형외과 캠페인을 모모성형외과 리포트 제목으로 HTML 만들어줘"
 ```
 
-### 3. 직접 명령어 사용
+### 4. 직접 명령어 사용
 ```
 키워드:임동규 날짜:20250721-20250724 매체:전체 HTML 파일 생성
 ```

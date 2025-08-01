@@ -1093,18 +1093,8 @@ export class UnifiedSearchService {
         <div>
           <div>전체 CTR: <span class="metric-value">${overallCTR}%</span></div>
         </div>`;
-      } else {
-        // 내부용: 모든 정보 포함
-        summaryContent += `
-        <div>
-          <div>총 광고비: <span class="metric-value">₩${totalSpend.toLocaleString()}</span></div>
-          <div>총 노출수: <span class="metric-value">${totalImpressions.toLocaleString()}</span></div>
-        </div>
-        <div>
-          <div>총 클릭수: <span class="metric-value">${totalClicks.toLocaleString()}</span></div>
-          <div>전체 CTR: <span class="metric-value">${overallCTR}%</span></div>
-        </div>`;
       }
+      // 내부용은 새로운 표 형태로 대체됨 (라인 1115-1127)
     }
     
     // 전체 요약 HTML 생성 (리포트 타입별 분기)

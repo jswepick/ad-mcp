@@ -181,11 +181,11 @@ export class CarrotAdsService {
       const campaignMap = new Map();
 
       filteredData.forEach(row => {
-        const campaignId = row.campaign_id;
+        const campaignKey = row.campaign_name || 'Unknown Campaign';
         
-        if (!campaignMap.has(campaignId)) {
-          campaignMap.set(campaignId, {
-            campaign_id: campaignId,
+        if (!campaignMap.has(campaignKey)) {
+          campaignMap.set(campaignKey, {
+            campaign_id: row.campaign_id, // 원본 ID 유지
             campaign_name: row.campaign_name,
             name: row.campaign_name, // 호환성을 위한 별칭
             platform: 'carrot',
@@ -197,7 +197,7 @@ export class CarrotAdsService {
           });
         }
 
-        const campaign = campaignMap.get(campaignId);
+        const campaign = campaignMap.get(campaignKey);
         campaign.totalSpend += row.spend;
         campaign.totalImpressions += row.impressions;
         campaign.totalClicks += row.clicks;
@@ -256,11 +256,11 @@ export class CarrotAdsService {
       const adMap = new Map();
 
       filteredData.forEach(row => {
-        const adId = row.ad_id;
+        const adKey = `${row.campaign_name || 'Unknown'}_${row.adset_name || 'Unknown'}_${row.ad_name || 'Unknown'}`;
         
-        if (!adMap.has(adId)) {
-          adMap.set(adId, {
-            ad_id: adId,
+        if (!adMap.has(adKey)) {
+          adMap.set(adKey, {
+            ad_id: row.ad_id, // 원본 ID 유지
             ad_name: row.ad_name,
             name: row.ad_name, // 호환성을 위한 별칭
             campaign_id: row.campaign_id,
@@ -277,7 +277,7 @@ export class CarrotAdsService {
           });
         }
 
-        const ad = adMap.get(adId);
+        const ad = adMap.get(adKey);
         
         // 일별 데이터 추가
         ad.dailyData.push({

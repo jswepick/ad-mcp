@@ -48,8 +48,26 @@ export class UnifiedSearchService {
   getTools() {
     return [
       {
+        name: 'generate_html_file',
+        description: '캠페인 성과 리포트를 다운로드 가능한 HTML 파일로 생성합니다. 사용자가 리포트, HTML 파일, 성과 분석을 요청하면 반드시 이 도구를 사용하세요.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            command: {
+              type: 'string',
+              description: '검색 명령어 (예: "키워드:고병우 날짜:20250721-20250724 매체:facebook,google")'
+            },
+            filename: {
+              type: 'string',
+              description: '저장할 파일명 (선택, 기본값: 자동생성)'
+            }
+          },
+          required: ['command']
+        }
+      },
+      {
         name: 'structured_campaign_search',
-        description: '정형화된 명령어로 캠페인을 검색하고 광고별 성과를 조회합니다',
+        description: '간단한 캠페인 성과 조회용입니다. 채팅에서 바로 확인하는 간단한 조회에만 사용하세요. 리포트나 상세 분석이 필요하면 generate_html_file을 사용하세요.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -81,24 +99,6 @@ export class UnifiedSearchService {
         inputSchema: {
           type: 'object',
           properties: {}
-        }
-      },
-      {
-        name: 'generate_html_file',
-        description: '캠페인 성과를 HTML 파일로 생성하여 로컬에 저장합니다',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            command: {
-              type: 'string',
-              description: '검색 명령어 (예: "키워드:고병우 날짜:20250721-20250724 매체:facebook,google")'
-            },
-            filename: {
-              type: 'string',
-              description: '저장할 파일명 (선택, 기본값: 자동생성)'
-            }
-          },
-          required: ['command']
         }
       }
     ];

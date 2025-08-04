@@ -1159,7 +1159,6 @@ export class UnifiedSearchService {
 
     // 제목 결정
     const reportTitle = command.customTitle || '성과 리포트';
-    const isClientReport = command.reportType === 'client';
 
     // 리포트 타입별 지표 컬럼 정의
     const getTableColumns = (reportType) => {
@@ -1261,8 +1260,29 @@ export class UnifiedSearchService {
           <div>총 광고: <span class="metric-value">${totalAds}개</span></div>
         </div>`;
       
-      if (isClientReport) {
-        // 광고주용: 비용 정보 제외
+      if (command.reportType === 'A') {
+        // 광고주용 A타입: 광고비 포함
+        summaryContent += `
+        <div>
+          <div>총 광고비: <span class="metric-value">₩${totalSpend.toLocaleString()}</span></div>
+          <div>총 노출수: <span class="metric-value">${totalImpressions.toLocaleString()}</span></div>
+        </div>
+        <div>
+          <div>총 클릭수: <span class="metric-value">${totalClicks.toLocaleString()}</span></div>
+          <div>전체 CTR: <span class="metric-value">${overallCTR}%</span></div>
+        </div>`;
+      } else if (command.reportType === 'B') {
+        // 광고주용 B타입: 전환수 포함
+        summaryContent += `
+        <div>
+          <div>총 노출수: <span class="metric-value">${totalImpressions.toLocaleString()}</span></div>
+          <div>총 클릭수: <span class="metric-value">${totalClicks.toLocaleString()}</span></div>
+        </div>
+        <div>
+          <div>전체 CTR: <span class="metric-value">${overallCTR}%</span></div>
+        </div>`;
+      } else if (command.reportType === 'client') {
+        // 기존 광고주용: 비용 정보 제외
         summaryContent += `
         <div>
           <div>총 노출수: <span class="metric-value">${totalImpressions.toLocaleString()}</span></div>
@@ -1277,7 +1297,7 @@ export class UnifiedSearchService {
     
     // 전체 요약 HTML 생성 (리포트 타입별 분기)
     let summaryHtml = '';
-    if (isClientReport) {
+    if (command.reportType === 'A' || command.reportType === 'B' || command.reportType === 'client') {
       // 광고주용: 전체 요약 제거
       summaryHtml = '';
     } else {
@@ -1375,7 +1395,7 @@ export class UnifiedSearchService {
     
     ${summaryHtml}
     
-    ${!isClientReport ? `<div style="text-align: center; margin-top: 30px; color: #7f8c8d; font-size: 12px;">
+    ${(command.reportType !== 'A' && command.reportType !== 'B' && command.reportType !== 'client') ? `<div style="text-align: center; margin-top: 30px; color: #7f8c8d; font-size: 12px;">
       리포트 생성 시간: ${new Date().toLocaleString('ko-KR')}
       ${exchangeInfo ? `<br>환율 정보: 1 USD = ₩${exchangeInfo.rate.toLocaleString()} (${exchangeInfo.date}, ${exchangeInfo.source === 'koreaexim_api' ? '한국수출입은행' : '기본값'})` : ''}
     </div>` : ''}

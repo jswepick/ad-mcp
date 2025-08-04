@@ -511,6 +511,78 @@ export class UnifiedSearchService {
         background-color: #f8f9fa;
         font-weight: bold;
       }
+      
+      /* PDF 인쇄 최적화 스타일 */
+      @media print {
+        /* 불필요한 요소 숨기기 */
+        #edit-guide,
+        .btn-view-daily,
+        button,
+        .filters-container {
+          display: none !important;
+        }
+        
+        /* 페이지 여백 조정 */
+        @page {
+          margin: 1cm;
+          size: A4 landscape;
+        }
+        
+        /* 컨테이너 스타일 조정 */
+        .container {
+          box-shadow: none;
+          max-width: none;
+          margin: 0;
+          padding: 10px;
+        }
+        
+        /* 테이블 페이지 나눔 방지 */
+        table {
+          page-break-inside: avoid;
+        }
+        
+        /* 행 나눔 방지 */
+        tr {
+          page-break-inside: avoid;
+          page-break-after: auto;
+        }
+        
+        /* 머리글 반복 */
+        thead {
+          display: table-header-group;
+        }
+        
+        /* 색상 및 배경 최적화 */
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        
+        /* 수정된 값 강조 */
+        .editable-conversion {
+          border: 1px solid #ccc !important;
+        }
+        
+        /* 링크 주소 숨기기 */
+        a[href]:after {
+          content: none !important;
+        }
+        
+        /* 폰트 크기 조정 */
+        body {
+          font-size: 12px;
+        }
+        
+        h1 {
+          font-size: 18px;
+          margin-bottom: 15px;
+        }
+        
+        h2, h3, h4 {
+          font-size: 14px;
+          margin: 10px 0 5px 0;
+        }
+      }
     </style>`;
   }
 
@@ -546,7 +618,7 @@ export class UnifiedSearchService {
   /**
    * 캠페인 합산 성과 HTML 생성
    */
-  formatCampaignSummaryHtml(campaign, campaignAds, dateRange, tableColumns, isClientReport) {
+  formatCampaignSummaryHtml(campaign, campaignAds, dateRange, tableColumns, reportType) {
     // 전체 합산 계산
     let totalSpend = 0;
     let totalImpressions = 0;
@@ -581,8 +653,24 @@ export class UnifiedSearchService {
     
     // 테이블 데이터 생성 (리포트 타입에 따라)
     let dataHtml = '';
-    if (isClientReport) {
-      // 광고주용: 비용 및 전환 관련 정보 제외
+    if (reportType === 'A') {
+      // 광고주용 A타입: 광고비 포함
+      dataHtml = `
+        <td class="metric-value">₩${totalSpend.toLocaleString()}</td>
+        <td class="metric-value">${totalImpressions.toLocaleString()}</td>
+        <td class="metric-value">${totalClicks.toLocaleString()}</td>
+        <td class="metric-value">${avgCtr}%</td>
+        <td class="metric-value">₩${parseFloat(avgCpc).toLocaleString()}</td>
+        <td class="metric-value">₩${parseFloat(avgCpm).toLocaleString()}</td>`;
+    } else if (reportType === 'B') {
+      // 광고주용 B타입: 전환수 포함
+      dataHtml = `
+        <td class="metric-value">${totalImpressions.toLocaleString()}</td>
+        <td class="metric-value">${totalClicks.toLocaleString()}</td>
+        <td class="metric-value">${avgCtr}%</td>
+        <td class="metric-value">${totalConversions > 0 ? totalConversions.toLocaleString() : '0'}</td>`;
+    } else if (reportType === 'client') {
+      // 기존 광고주용: 비용 및 전환 관련 정보 제외
       dataHtml = `
         <td class="metric-value">${totalImpressions.toLocaleString()}</td>
         <td class="metric-value">${totalClicks.toLocaleString()}</td>
@@ -624,7 +712,7 @@ export class UnifiedSearchService {
   /**
    * 캠페인 일별 성과 HTML 생성
    */
-  formatCampaignDailyHtml(campaignDailyData, tableColumns, isClientReport) {
+  formatCampaignDailyHtml(campaignDailyData, tableColumns, reportType) {
     if (!campaignDailyData || campaignDailyData.length === 0) {
       return '<p class="no-data">일별 데이터가 없습니다.</p>';
     }
@@ -663,8 +751,35 @@ export class UnifiedSearchService {
       const conversionRate = derivedMetrics.conversion_rate || 0;
       const costPerConversion = derivedMetrics.cost_per_conversion || 0;
       
-      if (isClientReport) {
-        // 광고주용: 비용 및 전환 관련 정보 제외
+      if (reportType === 'A') {
+        // 광고주용 A타입: 광고비 포함
+        dailyDataHtml = `
+          <td>${dayData.date}</td>
+          <td class="metric-value">₩${parseFloat(dayData.spend).toLocaleString()}</td>
+          <td class="metric-value">${parseInt(dayData.impressions).toLocaleString()}</td>
+          <td class="metric-value">${parseInt(dayData.clicks).toLocaleString()}</td>
+          <td class="metric-value">${derivedMetrics.ctr}%</td>
+          <td class="metric-value">₩${derivedMetrics.cpm.toLocaleString()}</td>
+          <td class="metric-value">₩${derivedMetrics.cpc.toLocaleString()}</td>
+          <td>${formatTrend('spend')}</td>
+          <td>${formatTrend('impressions')}</td>
+          <td>${formatTrend('clicks')}</td>
+          <td>${formatTrend('ctr')}</td>
+          <td>${formatTrend('cpm')}</td>
+          <td>${formatTrend('cpc')}</td>`;
+      } else if (reportType === 'B') {
+        // 광고주용 B타입: 전환수 포함
+        dailyDataHtml = `
+          <td>${dayData.date}</td>
+          <td class="metric-value">${parseInt(dayData.impressions).toLocaleString()}</td>
+          <td class="metric-value">${parseInt(dayData.clicks).toLocaleString()}</td>
+          <td class="metric-value">${derivedMetrics.ctr}%</td>
+          <td class="metric-value">${conversions > 0 ? conversions.toLocaleString() : '0'}</td>
+          <td>${formatTrend('impressions')}</td>
+          <td>${formatTrend('clicks')}</td>
+          <td>${formatTrend('ctr')}</td>`;
+      } else if (reportType === 'client') {
+        // 기존 광고주용: 비용 및 전환 관련 정보 제외
         dailyDataHtml = `
           <td>${dayData.date}</td>
           <td class="metric-value">${parseInt(dayData.impressions).toLocaleString()}</td>
@@ -710,7 +825,7 @@ export class UnifiedSearchService {
   /**
    * 광고별 일별 성과 HTML 생성
    */
-  formatAdsDailyHtml(campaignAds, tableColumns, isClientReport) {
+  formatAdsDailyHtml(campaignAds, tableColumns, reportType) {
     if (!campaignAds || campaignAds.length === 0) {
       return '';
     }
@@ -759,8 +874,35 @@ export class UnifiedSearchService {
         const conversionRate = derivedMetrics.conversion_rate || 0;
         const costPerConversion = derivedMetrics.cost_per_conversion || 0;
         
-        if (isClientReport) {
-          // 광고주용: 비용 및 전환 관련 정보 제외
+        if (reportType === 'A') {
+          // 광고주용 A타입: 광고비 포함
+          adsDailyDataHtml = `
+            <td>${dayData.date}</td>
+            <td>₩${parseFloat(dayData.spend).toLocaleString()}</td>
+            <td>${parseInt(dayData.impressions).toLocaleString()}</td>
+            <td>${parseInt(dayData.clicks).toLocaleString()}</td>
+            <td>${derivedMetrics.ctr}%</td>
+            <td>₩${derivedMetrics.cpm.toLocaleString()}</td>
+            <td>₩${derivedMetrics.cpc.toLocaleString()}</td>
+            <td>${formatTrend('spend')}</td>
+            <td>${formatTrend('impressions')}</td>
+            <td>${formatTrend('clicks')}</td>
+            <td>${formatTrend('ctr')}</td>
+            <td>${formatTrend('cpm')}</td>
+            <td>${formatTrend('cpc')}</td>`;
+        } else if (reportType === 'B') {
+          // 광고주용 B타입: 전환수 포함
+          adsDailyDataHtml = `
+            <td>${dayData.date}</td>
+            <td>${parseInt(dayData.impressions).toLocaleString()}</td>
+            <td>${parseInt(dayData.clicks).toLocaleString()}</td>
+            <td>${derivedMetrics.ctr}%</td>
+            <td>${conversions > 0 ? conversions.toLocaleString() : '0'}</td>
+            <td>${formatTrend('impressions')}</td>
+            <td>${formatTrend('clicks')}</td>
+            <td>${formatTrend('ctr')}</td>`;
+        } else if (reportType === 'client') {
+          // 기존 광고주용: 비용 및 전환 관련 정보 제외
           adsDailyDataHtml = `
             <td>${dayData.date}</td>
             <td>${parseInt(dayData.impressions).toLocaleString()}</td>
@@ -809,7 +951,7 @@ export class UnifiedSearchService {
   /**
    * 매체별 캠페인 테이블 HTML 생성
    */
-  formatCampaignTableHtml(campaigns, ads, platform, tableColumns, isClientReport) {
+  formatCampaignTableHtml(campaigns, ads, platform, tableColumns, reportType) {
     if (campaigns.length === 0) {
       return '<p class="no-data">매칭되는 캠페인이 없습니다.</p>';
     }
@@ -837,11 +979,11 @@ export class UnifiedSearchService {
       <h3 class="campaign-name">📋 ${campaignName}</h3>`;
 
       // 1. 캠페인 합산 성과
-      html += this.formatCampaignSummaryHtml(campaign, campaignAds, dateRange, tableColumns, isClientReport);
+      html += this.formatCampaignSummaryHtml(campaign, campaignAds, dateRange, tableColumns, reportType);
 
       // 2. 캠페인 일별 성과
       const campaignDailyData = this.aggregateCampaignDailyData(campaignAds);
-      html += this.formatCampaignDailyHtml(campaignDailyData, tableColumns, isClientReport);
+      html += this.formatCampaignDailyHtml(campaignDailyData, tableColumns, reportType);
 
       // 3. 광고별 합산 성과 테이블
       const adsHeaderHtml = tableColumns.ads.map(col => `<th>${col}</th>`).join('');
@@ -888,8 +1030,27 @@ export class UnifiedSearchService {
 
           // 광고 데이터 행 생성 (리포트 타입에 따라)
           let adsDataHtml = '';
-          if (isClientReport) {
-            // 광고주용: 비용 및 전환 관련 정보 제외
+          if (command.reportType === 'A') {
+            // 광고주용 A타입: 광고비 포함
+            adsDataHtml = `
+              <td>${ad.ad_name || ad.name}</td>
+              <td class="metric-value">₩${spend.toLocaleString()}</td>
+              <td class="metric-value">${impressions.toLocaleString()}</td>
+              <td class="metric-value">${clicks.toLocaleString()}</td>
+              <td class="metric-value">${ctr}%</td>
+              <td class="metric-value">₩${parseFloat(cpc).toLocaleString()}</td>
+              <td class="metric-value">₩${parseFloat(cpm).toLocaleString()}</td>`;
+          } else if (command.reportType === 'B') {
+            // 광고주용 B타입: 전환수 포함 (편집 가능)
+            const editableConversions = conversions > 0 ? conversions.toLocaleString() : '0';
+            adsDataHtml = `
+              <td>${ad.ad_name || ad.name}</td>
+              <td class="metric-value">${impressions.toLocaleString()}</td>
+              <td class="metric-value">${clicks.toLocaleString()}</td>
+              <td class="metric-value">${ctr}%</td>
+              <td class="metric-value editable-conversion" contenteditable="true" style="background-color: #fffbcc; cursor: text;" data-original="${conversions || 0}">${editableConversions}</td>`;
+          } else if (command.reportType === 'client') {
+            // 기존 광고주용: 비용 및 전환 관련 정보 제외
             adsDataHtml = `
               <td>${ad.ad_name || ad.name}</td>
               <td class="metric-value">${impressions.toLocaleString()}</td>
@@ -920,7 +1081,7 @@ export class UnifiedSearchService {
       html += '</tbody></table></div></div>';
 
       // 4. 광고별 일별 성과
-      html += this.formatAdsDailyHtml(campaignAds, tableColumns, isClientReport);
+      html += this.formatAdsDailyHtml(campaignAds, tableColumns, reportType);
       
       // 캠페인 섹션 닫기
       html += `
@@ -1001,9 +1162,25 @@ export class UnifiedSearchService {
     const isClientReport = command.reportType === 'client';
 
     // 리포트 타입별 지표 컬럼 정의
-    const getTableColumns = (isClient) => {
-      if (isClient) {
-        // 광고주용: 비용 관련 지표 제외
+    const getTableColumns = (reportType) => {
+      if (reportType === 'A') {
+        // 광고주용 A타입: 광고비 포함
+        return {
+          summary: ['광고비', '노출수', '클릭수', 'CTR', 'CPC', 'CPM'],
+          campaign: ['광고비', '노출수', '클릭수', 'CTR', 'CPC', 'CPM'],
+          daily: ['날짜', '광고비', '노출수', '클릭수', 'CTR', 'CPM', 'CPC', '광고비변화', '노출수변화', '클릭수변화', 'CTR변화', 'CPM변화', 'CPC변화'],
+          ads: ['광고명', '광고비', '노출수', '클릭수', 'CTR', 'CPC', 'CPM']
+        };
+      } else if (reportType === 'B') {
+        // 광고주용 B타입: 전환수 포함 (편집 가능)
+        return {
+          summary: ['노출수', '클릭수', 'CTR', '전환수'],
+          campaign: ['노출수', '클릭수', 'CTR', '전환수'],
+          daily: ['날짜', '노출수', '클릭수', 'CTR', '전환수', '노출수변화', '클릭수변화', 'CTR변화'],
+          ads: ['광고명', '노출수', '클릭수', 'CTR', '전환수']
+        };
+      } else if (reportType === 'client') {
+        // 기존 광고주용: 비용 관련 지표 제외
         return {
           summary: ['노출수', '클릭수', 'CTR'],
           campaign: ['노출수', '클릭수', 'CTR'],
@@ -1021,7 +1198,7 @@ export class UnifiedSearchService {
       }
     };
 
-    const tableColumns = getTableColumns(isClientReport);
+    const tableColumns = getTableColumns(command.reportType);
 
     let totalCampaigns = 0;
     let totalAds = 0;
@@ -1057,7 +1234,7 @@ export class UnifiedSearchService {
       } else if (campaigns.length === 0) {
         bodyHtml += '<p class="no-data">매칭되는 캠페인이 없습니다.</p>';
       } else {
-        bodyHtml += this.formatCampaignTableHtml(campaigns, ads, platform, tableColumns, isClientReport);
+        bodyHtml += this.formatCampaignTableHtml(campaigns, ads, platform, tableColumns, command.reportType);
         
         // 집계 업데이트
         totalCampaigns += campaigns.length;
@@ -1133,6 +1310,20 @@ export class UnifiedSearchService {
 <body>
   <div class="container">
     <h1>${reportTitle}</h1>
+    
+    ${command.reportType === 'B' ? `
+    <div id="edit-guide" style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; margin: 20px 0; border-radius: 5px;">
+      <h3 style="margin: 0 0 10px 0;">📝 전환수 편집 안내</h3>
+      <ul style="margin: 0; padding-left: 20px;">
+        <li>노란색 배경의 전환수를 클릭하여 수정할 수 있습니다.</li>
+        <li>수정 완료 후 아래 버튼을 클릭하여 편집을 완료하세요.</li>
+        <li>편집 완료 후 브라우저에서 'Ctrl+P' 또는 '인쇄'를 선택하여 PDF로 저장하세요.</li>
+      </ul>
+      <button onclick="finalizeReport()" style="margin-top: 10px; padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
+        ✅ 편집 완료 및 읽기 전용으로 변환
+      </button>
+    </div>
+    ` : ''}
     
     <div class="search-info">
       <strong>검색 조건:</strong><br>
@@ -1933,6 +2124,72 @@ export class UnifiedSearchService {
         totalSpendElement.textContent = '₩' + totalSpend.toLocaleString();
       }
     }
+    
+    // 전환수 편집 기능 (B타입 리포트용)
+    function finalizeReport() {
+      // 모든 contenteditable 요소 찾기
+      const editableElements = document.querySelectorAll('[contenteditable="true"]');
+      
+      editableElements.forEach(element => {
+        // contenteditable 속성 제거
+        element.removeAttribute('contenteditable');
+        
+        // 스타일 변경 (배경색 제거, 커서 기본값)
+        element.style.backgroundColor = 'transparent';
+        element.style.cursor = 'default';
+        
+        // 변경 사항 하이라이트 (선택사항)
+        const originalValue = element.getAttribute('data-original');
+        const currentValue = element.textContent.replace(/,/g, '');
+        
+        if (originalValue !== currentValue) {
+          element.style.fontWeight = 'bold';
+          element.style.color = '#e74c3c';
+        }
+      });
+      
+      // 편집 가이드 제거
+      const editGuide = document.getElementById('edit-guide');
+      if (editGuide) {
+        editGuide.remove();
+      }
+      
+      // 완료 메시지
+      alert('편집이 완료되었습니다. 이제 Ctrl+P를 눌러 PDF로 저장하세요.');
+    }
+    
+    // 숫자 포맷팅 함수
+    function formatNumber(num) {
+      return num.toString().replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',');
+    }
+    
+    // contenteditable 필드에 입력 제한 추가 (페이지 로드 시)
+    document.addEventListener('DOMContentLoaded', function() {
+      const editableElements = document.querySelectorAll('[contenteditable="true"]');
+      
+      editableElements.forEach(element => {
+        element.addEventListener('input', function(e) {
+          // 숫자만 허용
+          let value = e.target.textContent.replace(/[^\\d]/g, '');
+          e.target.textContent = formatNumber(value);
+          
+          // 커서 위치 조정
+          const selection = window.getSelection();
+          const range = document.createRange();
+          range.selectNodeContents(e.target);
+          range.collapse(false);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        });
+        
+        element.addEventListener('keypress', function(e) {
+          // 숫자와 백스페이스만 허용
+          if (!/[\\d]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete') {
+            e.preventDefault();
+          }
+        });
+      });
+    });
     `;
   }
 

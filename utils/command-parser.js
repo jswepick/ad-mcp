@@ -187,6 +187,20 @@ export function parseUserCommand(userInput) {
       }
     }
 
+    // 타입 추출 (A, B, client)
+    const typeMatch = userInput.match(/타입:([^\s]+)/);
+    if (typeMatch) {
+      const typeStr = typeMatch[1].toUpperCase();
+      if (typeStr === 'A' || typeStr === 'B') {
+        command.reportType = typeStr;
+      } else if (typeStr === 'CLIENT') {
+        command.reportType = 'client';
+      } else {
+        command.errors.push('유효하지 않은 타입입니다 (A, B, client만 가능)');
+        command.isValid = false;
+      }
+    }
+
     // 커스텀 제목 추출
     const titleMatch = userInput.match(/제목:([^]+)/);
     if (titleMatch) {

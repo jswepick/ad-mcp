@@ -2172,7 +2172,7 @@ export class UnifiedSearchService {
         
         if (originalValue !== currentValue) {
           element.style.fontWeight = 'bold';
-          element.style.color = '#e74c3c';
+          element.style.color = '#3498db';
         }
       });
       

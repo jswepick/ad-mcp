@@ -1030,7 +1030,7 @@ export class UnifiedSearchService {
 
           // 광고 데이터 행 생성 (리포트 타입에 따라)
           let adsDataHtml = '';
-          if (command.reportType === 'A') {
+          if (reportType === 'A') {
             // 광고주용 A타입: 광고비 포함
             adsDataHtml = `
               <td>${ad.ad_name || ad.name}</td>
@@ -1040,7 +1040,7 @@ export class UnifiedSearchService {
               <td class="metric-value">${ctr}%</td>
               <td class="metric-value">₩${parseFloat(cpc).toLocaleString()}</td>
               <td class="metric-value">₩${parseFloat(cpm).toLocaleString()}</td>`;
-          } else if (command.reportType === 'B') {
+          } else if (reportType === 'B') {
             // 광고주용 B타입: 전환수 포함 (편집 가능)
             const editableConversions = conversions > 0 ? conversions.toLocaleString() : '0';
             adsDataHtml = `
@@ -1049,7 +1049,7 @@ export class UnifiedSearchService {
               <td class="metric-value">${clicks.toLocaleString()}</td>
               <td class="metric-value">${ctr}%</td>
               <td class="metric-value editable-conversion" contenteditable="true" style="background-color: #fffbcc; cursor: text;" data-original="${conversions || 0}">${editableConversions}</td>`;
-          } else if (command.reportType === 'client') {
+          } else if (reportType === 'client') {
             // 기존 광고주용: 비용 및 전환 관련 정보 제외
             adsDataHtml = `
               <td>${ad.ad_name || ad.name}</td>

@@ -201,6 +201,23 @@ export function parseUserCommand(userInput) {
       }
     }
 
+    // 표시 단위 추출 (캠페인/광고)
+    const unitMatch = userInput.match(/단위:([^\s]+)/);
+    if (unitMatch) {
+      const unitStr = unitMatch[1].toLowerCase();
+      if (unitStr === '캠페인' || unitStr === 'campaign') {
+        command.displayUnit = 'campaign';
+      } else if (unitStr === '광고' || unitStr === 'ad') {
+        command.displayUnit = 'ad';
+      } else {
+        command.errors.push('유효하지 않은 단위입니다 (캠페인 또는 광고만 가능)');
+        command.isValid = false;
+      }
+    } else {
+      // 기본값: 광고 단위까지 표시
+      command.displayUnit = 'ad';
+    }
+
     // 커스텀 제목 추출
     const titleMatch = userInput.match(/제목:([^]+)/);
     if (titleMatch) {
@@ -280,7 +297,7 @@ export function formatCommandSummary(command) {
     ? command.startDate 
     : `${command.startDate} ~ ${command.endDate}`;
 
-  const reportTypeText = command.reportType === 'client' ? '광고주용' : '내부용';
+  const reportTypeText = (command.reportType === 'A' || command.reportType === 'B' || command.reportType === 'client') ? '광고주용' : '내부용';
   
   let summary = `검색 조건\n- 키워드: "${command.keyword}"\n- 기간: ${dateRange}\n- 매체: ${platformList}\n- 리포트: ${reportTypeText}`;
   

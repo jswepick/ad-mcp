@@ -15,7 +15,7 @@ export function formatNumber(num) {
  * @returns {string} 포맷팅된 통화
  */
 export function formatCurrency(amount) {
-  return `$${parseFloat(amount || 0).toFixed(2)}`;
+  return `₩${Math.round(parseFloat(amount || 0)).toLocaleString()}`;
 }
 
 /**
